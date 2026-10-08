@@ -94,7 +94,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 Requires Python 3.11+. The core has no third-party dependencies.
 
 ```bash
-git clone https://github.com/<owner>/bruhOS.git && cd bruhOS
+git clone https://github.com/bruhosdotai/bruhOS.git && cd bruhOS
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
