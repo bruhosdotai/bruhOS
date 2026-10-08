@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bruhos"
+version = "0.1.0.dev0"
+description = "The skill OS that stands next to the robot."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [{ name = "BruhOS", email = "bruhos2027@gmail.com" }]
+keywords = ["robotics", "embodied-ai", "tonypi", "lerobot", "vlm", "skills"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+vision = ["opencv-python-headless>=4.8", "numpy>=1.24"]
+imu = ["smbus2>=0.4"]
+speech = ["faster-whisper>=1.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+bruhos = "bruhos.cli:main"
+
+[project.urls]
+Homepage = "https://bruhos.ai"
+X = "https://x.com/bruhos_ai"
+
+[tool.setuptools.packages.find]
+include = ["bruhos*"]
+
+[tool.setuptools.package-data]
+bruhos = ["eval/*.toml", "sim/*.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

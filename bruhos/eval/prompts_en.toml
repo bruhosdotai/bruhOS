@@ -1,0 +1,91 @@
+# 20 English instructions. The same file drives the kinematic sim today, the Isaac Lab twin in
+# v0.2, and the on-robot acceptance run. `expect` entries must all hold for a pass.
+#   event:<e>         e appears in the world event log (in_box:<obj>, wave, kicked:<obj>, kick:<foot>, stood_up)
+#   holding:<obj>     robot ends holding obj
+#   near:<obj>        episode succeeded and robot ends within 0.15 m of obj
+#   facing:<obj>      episode succeeded and obj ends within 8 degrees of heading
+#   success           episode completed every planned skill
+#   stopped           episode ended by the stop skill
+#   no_plan           brain correctly refused (out-of-scope instruction)
+
+[[prompt]]
+text = "Put the red one in the box."
+expect = ["event:in_box:red_block"]
+
+[[prompt]]
+text = "Put the blue block in the box."
+expect = ["event:in_box:blue_block"]
+
+[[prompt]]
+text = "Place the green cube into the box."
+expect = ["event:in_box:green_block"]
+
+[[prompt]]
+text = "Bring the red block to the box."
+expect = ["event:in_box:red_block"]
+
+[[prompt]]
+text = "Pick up the red block."
+expect = ["holding:red_block"]
+
+[[prompt]]
+text = "Grab the blue one."
+expect = ["holding:blue_block"]
+
+[[prompt]]
+text = "Walk to the box."
+expect = ["near:box"]
+
+[[prompt]]
+text = "Go to the green block."
+expect = ["near:green_block"]
+
+[[prompt]]
+text = "Look at the yellow ball."
+expect = ["facing:yellow_ball"]
+
+[[prompt]]
+text = "Face the box."
+expect = ["facing:box"]
+
+[[prompt]]
+text = "Find the green block."
+expect = ["success"]
+
+[[prompt]]
+text = "What do you see?"
+expect = ["success"]
+
+[[prompt]]
+text = "Wave hello."
+expect = ["event:wave"]
+
+[[prompt]]
+text = "Say hi to me."
+expect = ["event:wave"]
+
+[[prompt]]
+text = "Kick the ball."
+expect = ["event:kicked:yellow_ball"]
+
+[[prompt]]
+text = "Kick the ball with your left foot."
+expect = ["event:kicked:yellow_ball", "event:kick:left"]
+
+[[prompt]]
+text = "Follow the line."
+expect = ["success"]
+world = { line_m = 0.6 }
+
+[[prompt]]
+text = "Stand up."
+expect = ["event:stood_up", "success"]
+world = { fallen = true, fell_forward = false }
+
+[[prompt]]
+text = "Stop."
+expect = ["stopped"]
+
+[[prompt]]
+text = "Do a backflip."
+expect = ["no_plan"]

@@ -1,0 +1,49 @@
+# Scene spec for the Isaac Lab digital twin (v0.2). Spec only — the Isaac task is not in this
+# repo yet. Geometry matches bruhos.sim.kinematic.World.tabletop() so both run the same
+# prompts_en.toml with the same skill / outcome schema.
+
+[scene]
+units = "m"
+floor = { size = [3.0, 3.0], color = "light_gray" }
+line = { start = [0.0, 0.0], end = [0.6, 0.0], width = 0.02, color = "black" }
+
+[[scene.object]]
+name = "red_block"
+shape = "cube"
+size = 0.04
+position = [0.6, 0.25]
+
+[[scene.object]]
+name = "blue_block"
+shape = "cube"
+size = 0.04
+position = [0.7, -0.3]
+
+[[scene.object]]
+name = "green_block"
+shape = "cube"
+size = 0.04
+position = [-0.5, 0.4]
+
+[[scene.object]]
+name = "box"
+shape = "open_box"
+size = [0.2, 0.2, 0.08]
+position = [0.9, 0.0]
+
+[[scene.object]]
+name = "yellow_ball"
+shape = "sphere"
+radius = 0.035
+position = [0.4, -0.6]
+
+[robot]
+model = "tonypi"
+start = { position = [0.0, 0.0], heading_deg = 0.0 }
+camera = { hfov_deg = 62.0, resolution = [640, 480] }
+
+[randomization]
+# Cosmos-generated variants (v0.2): occlusion, pushes, object swaps.
+push_force_n = [0.0, 6.0]
+object_jitter_m = 0.05
+lighting = ["office", "warm", "dim"]
