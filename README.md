@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/bruh.png" width="160" alt="bruh" />
+  <a href="https://bruhos.ai"><img src="docs/assets/reveal.gif" width="720" alt="bruhos.ai — the eyes first, then the clouds part" /></a>
 </p>
 
 <h1 align="center">bruhOS</h1>
