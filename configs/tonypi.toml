@@ -1,22 +1,26 @@
-# TonyPi (Raspberry Pi 5). Verify every action-group name against ActionGroups/ on your robot.
+# TonyPi (Hiwonder). Names below come from Hiwonder's TonyPi docs and example code
+# (docs.hiwonder.com/projects/TonyPi). Still check them against ActionGroups/ on your robot.
 
 [body]
 name = "tonypi"
-sdk_path = "/home/pi/TonyPi/HiwonderSDK"
+sdk_path = "/home/pi/TonyPi"                 # import hiwonder.ActionGroupControl
 action_path = "/home/pi/TonyPi/ActionGroups"
-turn_step_deg = 15.0
+turn_step_deg = 15.0                         # calibrate: measure one turn_*_small_step
 
 [actions]
 stand = "stand"
 forward = "go_forward"
-turn_left = "turn_left"
-turn_right = "turn_right"
-kick_left = "left_shot"
-kick_right = "right_shot"
+turn_left = "turn_left_small_step"
+turn_right = "turn_right_small_step"
+grab = "move_up"                             # arms lift a sponge block (Transport.py)
+release = "put_down"
+kick_left = "left_shot_fast"
+kick_right = "right_shot_fast"
 wave = "wave"
+# Fall recovery exists in the WonderPi app; the file names are not in the public docs.
+# Look for them in ActionGroups/ (e.g. stand_up_front / stand_up_back) and fix if different.
 stand_up_front = "stand_up_front"
 stand_up_back = "stand_up_back"
-# TonyPi has no gripper: grab / release stay unmapped and the skills report FAILED.
 
 [camera]
 enabled = true
