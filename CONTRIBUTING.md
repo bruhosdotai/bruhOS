@@ -41,7 +41,6 @@ Anyone can re-run it and get the same numbers.
 | Merged PR | **+10** |
 | Merged PR labelled `core` or `security` — runtime, brain, trace, security fixes | **+20** |
 | Merged PR labelled `docs` or `chore` — docs, typos, housekeeping | **+3** |
-| `hardware-verified` — run on a real robot, video or logs attached | **+15** |
 | `bounty:N` on a merged PR — set by maintainers on priority issues | **+N** |
 | `spam` on any PR or issue | **−20** and disqualified |
 

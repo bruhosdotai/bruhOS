@@ -18,7 +18,6 @@ team = ["bruhosdotai"]
 merged_pr = 10.0          # merged PR without a special label
 # Merged PR with one of these labels; the highest-paying label wins.
 labels = { core = 20.0, security = 20.0, docs = 3.0, chore = 3.0 }
-hardware_verified = 15.0  # PR or issue labelled hardware-verified (run on a real robot, video/log attached)
 spam = -20.0              # PR or issue labelled spam; also disqualifies
 # bounty:N on a merged PR adds N points.
 

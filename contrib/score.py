@@ -1,6 +1,6 @@
 """Contributor points for the bruhOS contributor pool.
 
-Reads merged PRs and labelled issues from the GitHub API, applies
+Reads merged PRs and spam-labelled issues from the GitHub API, applies
 contrib/rules.toml, and writes points.json (leaderboard + per-event breakdown).
 
     GITHUB_TOKEN=... python contrib/score.py --repo bruhosdotai/bruhOS --out points.json
@@ -79,22 +79,14 @@ def build_events(prs: list[dict], issues: list[dict], rules: dict) -> list[dict]
         p, lab = pr_points(labels, pts["labels"], pts["merged_pr"])
         ev.append(dict(user=author, kind="merged_pr", ref=ref, at=pr["merged_at"],
                        points=p, detail={"label": lab}))
-        if "hardware-verified" in labels:
-            ev.append(dict(user=author, kind="hardware_verified", ref=ref, at=pr["merged_at"],
-                           points=pts["hardware_verified"], detail={}))
         if (b := bounty(labels)) > 0:
             ev.append(dict(user=author, kind="bounty", ref=ref, at=pr["merged_at"], points=b, detail={}))
 
     for it in issues:
         ref = {"type": "issue", "number": it["number"], "title": it["title"], "url": it["url"]}
-        labels = it["labels"]
-        if "spam" in labels:
+        if "spam" in it["labels"]:
             ev.append(dict(user=it["author"], kind="spam", ref=ref,
                            at=it["closed_at"] or it["created_at"], points=pts["spam"], detail={}))
-            continue
-        if "hardware-verified" in labels:
-            ev.append(dict(user=it["author"], kind="hardware_verified", ref=ref, at=it["created_at"],
-                           points=pts["hardware_verified"], detail={}))
     return ev
 
 
@@ -172,7 +164,7 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
     users: dict[str, dict] = {}
     for e in events:
         u = users.setdefault(e["user"], {
-            "login": e["user"], "points": 0.0, "merged_prs": 0, "hardware_verified": 0, "bounties": 0.0,
+            "login": e["user"], "points": 0.0, "merged_prs": 0, "bounties": 0.0,
             "disqualified": False, "first_at": e["at"], "last_at": e["at"], "events": [],
         })
         u["points"] += e["credited"]
@@ -180,7 +172,6 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
         u["first_at"] = min(u["first_at"], e["at"])
         k = e["kind"]
         if k == "merged_pr": u["merged_prs"] += 1
-        elif k == "hardware_verified": u["hardware_verified"] += 1
         elif k == "bounty": u["bounties"] += e["credited"]
         elif k == "spam": u["disqualified"] = True
         u["events"].append({x: e[x] for x in ("kind", "ref", "at", "points", "credited", "detail")})
@@ -300,7 +291,7 @@ def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, st
         if "pull_request" in i:
             continue
         labels = _labels(i)
-        if not {"spam", "hardware-verified"} & set(labels):
+        if "spam" not in labels:
             continue
         user = i.get("user") or {}
         avatars[user.get("login", "")] = user.get("avatar_url", "")

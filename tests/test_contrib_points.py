@@ -56,13 +56,20 @@ def test_unmerged_wrong_branch_and_team_and_bots_ignored():
     assert run(prs)["contributors"] == []
 
 
-def test_hardware_verified_and_bounty():
+def test_bounty_and_no_hardware_bonus():
     a = by_login(run([pr(1, "alice", labels=["hardware-verified", "bounty:50"])]))["alice"]
-    assert a["points"] == 10 + 15 + 50
-    assert a["hardware_verified"] == 1 and a["bounties"] == 50.0
+    assert a["points"] == 10 + 50
+    assert a["bounties"] == 50.0
     issues = [{"number": 11, "title": "ran on tonypi", "url": "u", "author": "dave",
                "labels": ["hardware-verified"], "created_at": "2026-10-03T00:00:00Z", "closed_at": None}]
-    assert by_login(run([], issues))["dave"]["points"] == 15.0
+    assert run([], issues)["contributors"] == []
+
+
+def test_spam_issue_disqualifies():
+    issues = [{"number": 12, "title": "x", "url": "u", "author": "alice", "labels": ["spam"],
+               "created_at": "2026-10-03T00:00:00Z", "closed_at": "2026-10-03T01:00:00Z"}]
+    out = by_login(run([pr(1, "alice", labels=["core"], merged=day(1)), pr(2, "alice", labels=["core"], merged=day(2))], issues))
+    assert out["alice"]["disqualified"] and not out["alice"]["eligible"]
 
 
 def test_daily_cap_and_bounty_exempt():
