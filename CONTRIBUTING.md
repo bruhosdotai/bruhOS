@@ -53,12 +53,6 @@ PRs that are closed without merging cost nothing. Try things.
 - Bots and core team accounts are ignored.
 - Splitting one change into many tiny PRs or generated filler is labelled `chore` or `spam`.
 
-## Registering your wallet
-
-Add one file, `contrib/wallets/<your-github-username>.txt`, containing only your address, and
-open a PR from that same GitHub account. A wallet counts only when it was added in a merged PR
-authored by its owner. To change it, open another PR.
-
 ## Fine print
 
 Points and the leaderboard are an estimate until the snapshot. Rules may be tuned before the

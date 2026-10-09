@@ -25,15 +25,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Restore cache from the scores branch
-        run: |
-          mkdir -p out
-          (git fetch -q --depth 1 origin scores && git show origin/scores:cache.json > out/cache.json) || rm -f out/cache.json
-
       - name: Compute points
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python contrib/score.py --repo "${{ github.repository }}" --out out/points.json --cache out/cache.json
+        run: mkdir -p out && python contrib/score.py --repo "${{ github.repository }}" --out out/points.json
 
       - name: Publish to the scores branch
         env:
@@ -43,6 +38,6 @@ jobs:
           git init -q -b scores
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add points.json cache.json
+          git add points.json
           git commit -qm "points $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" scores

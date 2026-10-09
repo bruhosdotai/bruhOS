@@ -24,9 +24,7 @@ from pathlib import Path
 
 API = "https://api.github.com"
 RULES = Path(__file__).with_name("rules.toml")
-WALLETS_DIR = "contrib/wallets/"
 BOUNTY_RE = re.compile(r"^bounty:(\d+(?:\.\d+)?)$")
-WALLET_RE = re.compile(r"^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$")
 
 
 # ---------------------------------------------------------------- rules ----
@@ -137,12 +135,11 @@ def allocate(points: dict[str, float], min_points: float, max_share: float) -> d
 # -------------------------------------------------------------- compute ----
 
 def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
-            wallets: dict[str, str] | None = None, avatars: dict[str, str] | None = None,
-            repo_name: str = "") -> dict:
+            avatars: dict[str, str] | None = None, repo_name: str = "") -> dict:
     pool, repo = rules["pool"], rules["repo"]
     team = {t.lower() for t in repo["team"]}
     snapshot = parse_ts(pool.get("snapshot_at") or None)
-    wallets, avatars = wallets or {}, avatars or {}
+    avatars = avatars or {}
 
     def counted(login: str, typ: str = "User") -> bool:
         return bool(login) and login.lower() not in team and not is_bot(login, typ)
@@ -154,12 +151,6 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
     if snapshot:
         events = [e for e in events if parse_ts(e["at"]) <= snapshot]
     events = apply_caps(events, rules)
-
-    # A wallet counts only if the owner added it in their own merged PR.
-    wallet_ok = {
-        p["author"] for p in prs if p["merged_at"]
-        and any(f["filename"] == f"{WALLETS_DIR}{p['author']}.txt" for f in p["files"])
-    }
 
     users: dict[str, dict] = {}
     for e in events:
@@ -186,14 +177,12 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
     rows = []
     for login, u in users.items():
         share = shares.get(login, 0.0)
-        w = wallets.get(login)
         rows.append({
             **u,
             "avatar": avatars.get(login, f"https://github.com/{login}.png?size=96"),
             "eligible": login in shares,
             "pool_share": round(share, 6),
             "supply_pct": round(share * pool["supply_pct"], 6),
-            "wallet": w if (w and login in wallet_ok) else None,
         })
     rows.sort(key=lambda r: (-r["points"], r["login"].lower()))
     for i, r in enumerate(rows, 1):
@@ -263,9 +252,9 @@ def _labels(obj: dict) -> list[str]:
     return [l["name"] for l in obj.get("labels", [])]
 
 
-def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, str], dict]:
+def fetch(gh: GitHub) -> tuple[list[dict], list[dict], dict[str, str]]:
     avatars: dict[str, str] = {}
-    prs, new_cache = [], {}
+    prs = []
     for p in gh.pages("/pulls", state="closed", sort="created", direction="asc"):
         user = p.get("user") or {}
         login = user.get("login", "")
@@ -275,15 +264,7 @@ def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, st
             "author": login, "author_type": user.get("type", "User"),
             "labels": _labels(p), "base": p["base"]["ref"],
             "created_at": p["created_at"], "closed_at": p["closed_at"], "merged_at": p["merged_at"],
-            "files": [],
         }
-        if p["merged_at"]:
-            key = str(p["number"])
-            if key in cache and "files" in cache[key]:
-                item["files"] = cache[key]["files"]
-            else:
-                item["files"] = [{"filename": f["filename"]} for f in gh.pages(f"/pulls/{p['number']}/files")]
-            new_cache[key] = {"files": item["files"]}
         prs.append(item)
 
     issues = []
@@ -300,18 +281,7 @@ def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, st
             "author": user.get("login", ""), "author_type": user.get("type", "User"),
             "labels": labels, "created_at": i["created_at"], "closed_at": i.get("closed_at"),
         })
-    return prs, issues, {k: v for k, v in avatars.items() if k and v}, new_cache
-
-
-def read_wallets(root: Path) -> dict[str, str]:
-    out = {}
-    d = root / WALLETS_DIR
-    if d.is_dir():
-        for f in d.glob("*.txt"):
-            addr = f.read_text().strip()
-            if WALLET_RE.match(addr):
-                out[f.stem] = addr
-    return out
+    return prs, issues, {k: v for k, v in avatars.items() if k and v}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -319,26 +289,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "bruhosdotai/bruhOS"))
     ap.add_argument("--rules", type=Path, default=RULES)
     ap.add_argument("--out", type=Path, default=Path("points.json"))
-    ap.add_argument("--cache", type=Path, help="per-PR file list cache (read and rewritten)")
     args = ap.parse_args(argv)
 
-    cache = {}
-    if args.cache and args.cache.is_file():
-        try:
-            cache = json.loads(args.cache.read_text())
-        except json.JSONDecodeError:
-            cache = {}
-
     gh = GitHub(args.repo, os.environ.get("GITHUB_TOKEN"))
-    prs, issues, avatars, new_cache = fetch(gh, cache)
+    prs, issues, avatars = fetch(gh)
     result = compute(prs, issues, load_rules(args.rules), datetime.now(timezone.utc),
-                     wallets=read_wallets(Path(__file__).resolve().parent.parent),
                      avatars=avatars, repo_name=args.repo)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=1, ensure_ascii=False) + "\n")
-    if args.cache:
-        args.cache.write_text(json.dumps(new_cache, separators=(",", ":")) + "\n")
     t = result["totals"]
     print(f"{t['contributors']} contributors, {t['eligible']} eligible, {t['points']} points, "
           f"{t['merged_prs']} merged PRs, {gh.calls} API calls -> {args.out}", file=sys.stderr)

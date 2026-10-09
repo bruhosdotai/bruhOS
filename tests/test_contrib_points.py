@@ -13,12 +13,11 @@ RULES = score.load_rules()
 NOW = datetime(2026, 10, 9, tzinfo=timezone.utc)
 
 
-def pr(n, author, labels=(), merged="2026-10-01T10:00:00Z", files=None, base="main"):
+def pr(n, author, labels=(), merged="2026-10-01T10:00:00Z", base="main"):
     return {
         "number": n, "title": f"PR {n}", "url": f"https://x/{n}", "author": author,
         "labels": list(labels), "base": base, "created_at": "2026-09-30T00:00:00Z",
         "closed_at": merged or "2026-10-01T10:00:00Z", "merged_at": merged,
-        "files": files if files is not None else [{"filename": "bruhos/x.py"}],
     }
 
 
@@ -124,15 +123,6 @@ def test_supply_pct():
     row = run(prs)["contributors"][0]
     assert row["pool_share"] == pytest.approx(0.1)
     assert row["supply_pct"] == pytest.approx(0.5)
-
-
-def test_wallet_only_when_added_by_owner():
-    w = [{"filename": "contrib/wallets/alice.txt"}]
-    prs = [pr(1, "alice", labels=["core"]), pr(2, "alice", files=w), pr(3, "bob", labels=["core"])]
-    wallets = {"alice": "0x" + "a" * 40, "bob": "0x" + "b" * 40}
-    out = by_login(run(prs, wallets=wallets))
-    assert out["alice"]["wallet"] == "0x" + "a" * 40
-    assert out["bob"]["wallet"] is None
 
 
 def test_deterministic():
