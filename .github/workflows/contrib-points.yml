@@ -1,0 +1,48 @@
+name: contributor points
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["contrib/**", ".github/workflows/contrib-points.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: contrib-points
+  cancel-in-progress: false
+
+jobs:
+  points:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Restore cache from the scores branch
+        run: |
+          mkdir -p out
+          (git fetch -q --depth 1 origin scores && git show origin/scores:cache.json > out/cache.json) || rm -f out/cache.json
+
+      - name: Compute points
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python contrib/score.py --repo "${{ github.repository }}" --out out/points.json --cache out/cache.json
+
+      - name: Publish to the scores branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q -b scores
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add points.json cache.json
+          git commit -qm "points $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" scores
