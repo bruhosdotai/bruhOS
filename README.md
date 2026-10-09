@@ -217,6 +217,12 @@ tests/
 | **v0.3** | Two bodies: TonyPi skills + arm with π0.5 / SmolVLA; ChainSink on | Walk, see, talk — and grasp — as separate layers |
 | later | On-device VLA only with Jetson-class hardware | Still no GR00T whole-body head on a Pi 5 |
 
+## Contributing
+
+PRs welcome. 5% of the bruhOS token supply is shared among contributors by GitHub contribution
+points — rules in [CONTRIBUTING.md](CONTRIBUTING.md), live board at
+[bruhos.ai/contributors](https://bruhos.ai/contributors/).
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE). Third-party models and datasets keep their own licenses;
