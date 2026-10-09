@@ -114,7 +114,19 @@ def test_allocate_proportional_min_points_and_cap():
     assert capped["big"] == pytest.approx(0.15)
     assert capped["u0"] == pytest.approx(0.85 / 8)
     alone = score.allocate({"solo": 500.0}, 20, 0.15)
-    assert alone == {"solo": pytest.approx(0.15)}
+    assert alone == {"solo": pytest.approx(1.0)}
+
+
+def test_pool_always_fully_distributed_with_few_contributors():
+    four = score.allocate({"a": 925.0, "b": 30.0, "c": 25.0, "d": 20.0}, 20, 0.15)
+    assert sum(four.values()) == pytest.approx(1.0)
+    assert four["a"] == pytest.approx(0.925)
+    assert four["b"] > four["c"] > four["d"]
+    seven = score.allocate({"a": 1000.0, **{f"u{i}": 50.0 for i in range(6)}}, 20, 0.15)
+    assert seven["a"] == pytest.approx(0.15) and sum(seven.values()) == pytest.approx(1.0)
+    out = run([pr(1, "alice", lines=300, labels=["core"]), pr(2, "bob", lines=300, labels=["security"])])
+    assert out["totals"]["pool_unallocated"] == pytest.approx(0.0, abs=1e-6)
+    assert out["rules"]["effective_max_share"] == 1.0
 
 
 def test_supply_pct_and_totals():

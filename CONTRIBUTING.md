@@ -21,9 +21,10 @@ your tokens = your points ÷ total points of all eligible contributors × 5% of 
 ```
 
 - **Eligible:** at least **20 points** and not disqualified.
-- **Cap:** one contributor receives at most **15% of the pool** (0.75% of total supply). Anything
-  above the cap is redistributed to the others. If there are too few contributors for the whole
-  pool to be placed under the cap, the remainder is not distributed.
+- **The whole 5% is always distributed** to eligible contributors. Nothing is kept back.
+- **Cap:** with 7 or more eligible contributors, one contributor receives at most **15% of the
+  pool** (0.75% of total supply), and anything above the cap is redistributed to the others.
+  With fewer than 7, there is no cap and the pool is split purely by points.
 - **Core team** members are not part of this pool.
 - **Snapshot:** points are frozen about 30 days before TGE (targeted for end of 2026). The final
   list is published, there is a 7-day window to raise objections, and the allocation unlocks in

@@ -4,7 +4,8 @@
 [pool]
 supply_pct = 5.0          # share of total token supply reserved for contributors
 min_points = 20.0         # below this, a contributor is not eligible
-max_share = 0.15          # one contributor gets at most 15% of the pool
+max_share = 0.15          # one contributor gets at most 15% of the pool; applies only with
+                          # 7+ eligible, otherwise pure proportional, so the whole pool is always distributed
 # Points earned after this moment are not counted. Set ~30 days before TGE.
 snapshot_at = ""          # e.g. "2026-11-30T00:00:00Z"
 

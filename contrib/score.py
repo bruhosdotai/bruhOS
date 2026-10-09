@@ -157,11 +157,17 @@ def apply_caps(events: list[dict], rules: dict) -> list[dict]:
     return out
 
 
+def effective_cap(n_eligible: int, max_share: float) -> float:
+    """The pool is always fully distributed: when the cap cannot place the whole pool
+    (fewer than 1/max_share eligible contributors), there is no cap."""
+    return max_share if n_eligible * max_share >= 1.0 - 1e-12 else 1.0
+
+
 def allocate(points: dict[str, float], min_points: float, max_share: float) -> dict[str, float]:
-    """Pool share per eligible user, proportional to points, capped at max_share.
-    Excess above the cap is redistributed to the others; whatever still cannot be
-    placed (e.g. fewer than 1/max_share contributors) stays unallocated."""
+    """Pool share per eligible user, proportional to points, capped at the effective
+    cap. Excess above the cap is redistributed to the others, so shares sum to 1."""
     active = {u: p for u, p in points.items() if p >= min_points and p > 0}
+    max_share = effective_cap(len(active), max_share)
     shares: dict[str, float] = {}
     remaining = 1.0
     while active:
@@ -258,7 +264,9 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
         "repo": repo_name,
         "rules": {
             "supply_pct": pool["supply_pct"], "min_points": pool["min_points"],
-            "max_share": pool["max_share"], "snapshot_at": pool.get("snapshot_at") or None,
+            "max_share": pool["max_share"],
+            "effective_max_share": round(effective_cap(len(shares), pool["max_share"]), 6),
+            "snapshot_at": pool.get("snapshot_at") or None,
             "daily_points": rules["caps"]["daily_points"],
         },
         "totals": {
