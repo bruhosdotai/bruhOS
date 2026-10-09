@@ -36,56 +36,23 @@ Anyone can re-run it and get the same numbers.
 
 ## How points are earned
 
-### Merged pull requests
-
-```
-points = 10 × size multiplier × label multiplier
-```
-
-| Lines changed | Multiplier |
-| --- | --- |
-| ≤ 10 | 0.3 |
-| ≤ 50 | 0.7 |
-| ≤ 150 | 1.0 |
-| ≤ 500 | 1.5 |
-| > 500 | 2.0 (max) |
-
-Lines = additions + deletions, excluding lockfiles, images, video, model weights, datasets,
-traces and wallet files.
-
-| PR label | Multiplier |
-| --- | --- |
-| `security` | 2.0 |
-| `core` — runtime, brain, trace | 1.5 |
-| `skill` / `body` — new skills, robot adapters | 1.3 |
-| `feature` | 1.2 |
-| `test` | 1.0 |
-| `docs` | 0.6 |
-| `chore` | 0.3 |
-| no label | 1.0 |
-
-The highest matching label counts; labels do not stack. Maintainers set labels at review time.
-
-Examples: a 300-line `core` PR = 10 × 1.5 × 1.5 = **22.5**. A one-line typo fix with `chore` = **0.9**.
-
-### Other work
-
 | What | Points |
 | --- | --- |
-| `hardware-verified` — the change was run on a real robot, with video or logs attached | +15 |
-| `bounty:N` on a merged PR — set by maintainers on priority issues | +N |
-| `confirmed-bug` — an issue you opened was confirmed as a real bug | +3 |
-| Review — approve or request changes on someone else's PR that gets merged | +2 (max 10 per week) |
-| `spam` on any PR or issue | −20 and disqualified |
+| Merged PR | **+10** |
+| Merged PR labelled `core` or `security` — runtime, brain, trace, security fixes | **+20** |
+| Merged PR labelled `docs` or `chore` — docs, typos, housekeeping | **+3** |
+| `hardware-verified` — run on a real robot, video or logs attached | **+15** |
+| `bounty:N` on a merged PR — set by maintainers on priority issues | **+N** |
+| `spam` on any PR or issue | **−20** and disqualified |
 
+Maintainers set labels at review time. If a PR has several labels, the highest-paying one counts.
 PRs that are closed without merging cost nothing. Try things.
 
 ### Limits
 
 - At most **60 points per contributor per UTC day** (bounties are exempt).
-- Only one review per PR per reviewer counts. Reviewing your own PR counts for nothing.
 - Bots and core team accounts are ignored.
-- Splitting one change into many tiny PRs, generated filler, or farming reviews is treated as spam.
+- Splitting one change into many tiny PRs or generated filler is labelled `chore` or `spam`.
 
 ## Registering your wallet
 

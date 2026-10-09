@@ -1,6 +1,6 @@
 """Contributor points for the bruhOS contributor pool.
 
-Reads merged PRs, reviews and labelled issues from the GitHub API, applies
+Reads merged PRs and labelled issues from the GitHub API, applies
 contrib/rules.toml, and writes points.json (leaderboard + per-event breakdown).
 
     GITHUB_TOKEN=... python contrib/score.py --repo bruhosdotai/bruhOS --out points.json
@@ -20,13 +20,11 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
-from fnmatch import fnmatch
 from pathlib import Path
 
 API = "https://api.github.com"
 RULES = Path(__file__).with_name("rules.toml")
 WALLETS_DIR = "contrib/wallets/"
-REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED"}
 BOUNTY_RE = re.compile(r"^bounty:(\d+(?:\.\d+)?)$")
 WALLET_RE = re.compile(r"^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$")
 
@@ -44,24 +42,8 @@ def parse_ts(s: str | None) -> datetime | None:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def lines_changed(files: list[dict], exclude: list[str]) -> int:
-    total = 0
-    for f in files:
-        name = f["filename"]
-        if any(fnmatch(name, pat) or fnmatch(name.rsplit("/", 1)[-1], pat) for pat in exclude):
-            continue
-        total += int(f.get("additions", 0)) + int(f.get("deletions", 0))
-    return total
-
-
-def size_mult(lines: int, buckets: list[dict]) -> float:
-    for b in buckets:
-        if b["max_lines"] < 0 or lines <= b["max_lines"]:
-            return float(b["mult"])
-    return float(buckets[-1]["mult"])
-
-
-def label_mult(labels: list[str], table: dict, default: float) -> tuple[float, str | None]:
+def pr_points(labels: list[str], table: dict, default: float) -> tuple[float, str | None]:
+    """Points for a merged PR: the highest-paying label wins, otherwise the default."""
     hits = [(float(table[l]), l) for l in labels if l in table]
     if not hits:
         return default, None
@@ -80,7 +62,7 @@ def is_bot(login: str, user_type: str = "User") -> bool:
 
 def build_events(prs: list[dict], issues: list[dict], rules: dict) -> list[dict]:
     """Raw scoring events, before caps. Each event: user, kind, ref, at, points, detail."""
-    mp, other, repo = rules["merged_pr"], rules["other"], rules["repo"]
+    pts, repo = rules["points"], rules["repo"]
     ev: list[dict] = []
 
     for pr in prs:
@@ -89,65 +71,42 @@ def build_events(prs: list[dict], issues: list[dict], rules: dict) -> list[dict]
         when = pr["merged_at"] or pr["closed_at"] or pr["created_at"]
 
         if "spam" in labels:
-            ev.append(dict(user=author, kind="spam", ref=ref, at=when, points=other["spam"], detail={}))
+            ev.append(dict(user=author, kind="spam", ref=ref, at=when, points=pts["spam"], detail={}))
             continue
         if not pr["merged_at"] or pr.get("base") != repo["branch"]:
             continue
 
-        lines = lines_changed(pr["files"], repo["exclude_paths"])
-        sm = size_mult(lines, mp["size"])
-        lm, lab = label_mult(labels, mp["labels"], mp["default_label_mult"])
-        ev.append(dict(
-            user=author, kind="merged_pr", ref=ref, at=pr["merged_at"],
-            points=round(mp["base"] * sm * lm, 4),
-            detail={"lines": lines, "size_mult": sm, "label": lab, "label_mult": lm},
-        ))
+        p, lab = pr_points(labels, pts["labels"], pts["merged_pr"])
+        ev.append(dict(user=author, kind="merged_pr", ref=ref, at=pr["merged_at"],
+                       points=p, detail={"label": lab}))
         if "hardware-verified" in labels:
             ev.append(dict(user=author, kind="hardware_verified", ref=ref, at=pr["merged_at"],
-                           points=other["hardware_verified"], detail={}))
+                           points=pts["hardware_verified"], detail={}))
         if (b := bounty(labels)) > 0:
             ev.append(dict(user=author, kind="bounty", ref=ref, at=pr["merged_at"], points=b, detail={}))
-
-        seen: set[str] = set()
-        for r in sorted(pr.get("reviews", []), key=lambda r: r["submitted_at"] or ""):
-            who = r["user"]
-            if who == author or who in seen or r["state"] not in REVIEW_STATES or not r["submitted_at"]:
-                continue
-            seen.add(who)
-            ev.append(dict(user=who, kind="review", ref=ref, at=r["submitted_at"],
-                           points=other["review"], detail={"state": r["state"]}))
 
     for it in issues:
         ref = {"type": "issue", "number": it["number"], "title": it["title"], "url": it["url"]}
         labels = it["labels"]
         if "spam" in labels:
             ev.append(dict(user=it["author"], kind="spam", ref=ref,
-                           at=it["closed_at"] or it["created_at"], points=other["spam"], detail={}))
+                           at=it["closed_at"] or it["created_at"], points=pts["spam"], detail={}))
             continue
-        if "confirmed-bug" in labels:
-            ev.append(dict(user=it["author"], kind="confirmed_bug", ref=ref, at=it["created_at"],
-                           points=other["confirmed_bug"], detail={}))
         if "hardware-verified" in labels:
             ev.append(dict(user=it["author"], kind="hardware_verified", ref=ref, at=it["created_at"],
-                           points=other["hardware_verified"], detail={}))
+                           points=pts["hardware_verified"], detail={}))
     return ev
 
 
 def apply_caps(events: list[dict], rules: dict) -> list[dict]:
-    """Daily cap on positive points (bounties exempt) and weekly cap on review points."""
+    """Daily cap on positive points; bounties are exempt."""
     daily_cap = rules["caps"]["daily_points"]
-    review_cap = rules["other"]["review_weekly_cap"]
     day_used: dict[tuple, float] = defaultdict(float)
-    week_used: dict[tuple, float] = defaultdict(float)
     out = []
     for e in sorted(events, key=lambda e: (e["at"], e["ref"]["number"], e["kind"], e["user"])):
         e = dict(e, credited=e["points"])
         if e["points"] > 0:
             ts = parse_ts(e["at"])
-            if e["kind"] == "review":
-                wk = (e["user"], *ts.isocalendar()[:2])
-                e["credited"] = max(0.0, min(e["credited"], review_cap - week_used[wk]))
-                week_used[wk] += e["credited"]
             if e["kind"] != "bounty":
                 dk = (e["user"], ts.date().isoformat())
                 e["credited"] = max(0.0, min(e["credited"], daily_cap - day_used[dk]))
@@ -197,8 +156,6 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
         return bool(login) and login.lower() not in team and not is_bot(login, typ)
 
     prs = [p for p in prs if counted(p["author"], p.get("author_type", "User"))]
-    for p in prs:
-        p["reviews"] = [r for r in p.get("reviews", []) if counted(r["user"], r.get("user_type", "User"))]
     issues = [i for i in issues if counted(i["author"], i.get("author_type", "User"))]
 
     events = build_events(prs, issues, rules)
@@ -215,8 +172,7 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
     users: dict[str, dict] = {}
     for e in events:
         u = users.setdefault(e["user"], {
-            "login": e["user"], "points": 0.0, "merged_prs": 0, "reviews": 0,
-            "confirmed_bugs": 0, "hardware_verified": 0, "bounties": 0.0,
+            "login": e["user"], "points": 0.0, "merged_prs": 0, "hardware_verified": 0, "bounties": 0.0,
             "disqualified": False, "first_at": e["at"], "last_at": e["at"], "events": [],
         })
         u["points"] += e["credited"]
@@ -224,8 +180,6 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
         u["first_at"] = min(u["first_at"], e["at"])
         k = e["kind"]
         if k == "merged_pr": u["merged_prs"] += 1
-        elif k == "review": u["reviews"] += 1
-        elif k == "confirmed_bug": u["confirmed_bugs"] += 1
         elif k == "hardware_verified": u["hardware_verified"] += 1
         elif k == "bounty": u["bounties"] += e["credited"]
         elif k == "spam": u["disqualified"] = True
@@ -330,23 +284,15 @@ def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, st
             "author": login, "author_type": user.get("type", "User"),
             "labels": _labels(p), "base": p["base"]["ref"],
             "created_at": p["created_at"], "closed_at": p["closed_at"], "merged_at": p["merged_at"],
-            "files": [], "reviews": [],
+            "files": [],
         }
         if p["merged_at"]:
             key = str(p["number"])
-            if key in cache:
-                item["files"], item["reviews"] = cache[key]["files"], cache[key]["reviews"]
+            if key in cache and "files" in cache[key]:
+                item["files"] = cache[key]["files"]
             else:
-                item["files"] = [{"filename": f["filename"], "additions": f["additions"],
-                                  "deletions": f["deletions"]}
-                                 for f in gh.pages(f"/pulls/{p['number']}/files")]
-                item["reviews"] = []
-                for r in gh.pages(f"/pulls/{p['number']}/reviews"):
-                    ru = r.get("user") or {}
-                    avatars[ru.get("login", "")] = ru.get("avatar_url", "")
-                    item["reviews"].append({"user": ru.get("login", ""), "user_type": ru.get("type", "User"),
-                                            "state": r["state"], "submitted_at": r.get("submitted_at")})
-            new_cache[key] = {"files": item["files"], "reviews": item["reviews"]}
+                item["files"] = [{"filename": f["filename"]} for f in gh.pages(f"/pulls/{p['number']}/files")]
+            new_cache[key] = {"files": item["files"]}
         prs.append(item)
 
     issues = []
@@ -354,7 +300,7 @@ def fetch(gh: GitHub, cache: dict) -> tuple[list[dict], list[dict], dict[str, st
         if "pull_request" in i:
             continue
         labels = _labels(i)
-        if not {"spam", "confirmed-bug", "hardware-verified"} & set(labels):
+        if not {"spam", "hardware-verified"} & set(labels):
             continue
         user = i.get("user") or {}
         avatars[user.get("login", "")] = user.get("avatar_url", "")
@@ -382,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "bruhosdotai/bruhOS"))
     ap.add_argument("--rules", type=Path, default=RULES)
     ap.add_argument("--out", type=Path, default=Path("points.json"))
-    ap.add_argument("--cache", type=Path, help="per-PR files/reviews cache (read and rewritten)")
+    ap.add_argument("--cache", type=Path, help="per-PR file list cache (read and rewritten)")
     args = ap.parse_args(argv)
 
     cache = {}
