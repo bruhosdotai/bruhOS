@@ -1,0 +1,23 @@
+{
+ "generated_at": "2026-10-10T22:15:13.728899Z",
+ "repo": "bruhosdotai/bruhOS",
+ "rules": {
+  "supply_pct": 5.0,
+  "min_points": 20.0,
+  "max_share": 0.15,
+  "effective_max_share": 1.0,
+  "snapshot_at": null,
+  "daily_points": 60.0
+ },
+ "totals": {
+  "contributors": 0,
+  "eligible": 0,
+  "points": 0,
+  "eligible_points": 0,
+  "merged_prs": 0,
+  "pool_allocated": 0,
+  "pool_unallocated": 1
+ },
+ "contributors": [],
+ "recent": []
+}
