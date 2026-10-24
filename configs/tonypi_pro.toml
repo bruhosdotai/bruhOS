@@ -1,4 +1,5 @@
-# TonyPi Pro (Raspberry Pi 5, hands). Verify every action-group name against ActionGroups/ on your robot.
+# TonyPi Pro / Pro 5 vendor image. Only wave has passed physical acceptance.
+# Other mappings are examples: verify the files and commission each action on your robot.
 
 [body]
 name = "tonypi_pro"
@@ -32,6 +33,15 @@ bus = 1
 address = "0x68"
 fall_deg = 55.0
 forward_sign = 1
+driver = "controller"
+
+[imu.orientation]
+upright_axis = 0
+forward_axis = 2
+upright_sign = -1
+# Offsets belong to your robot. Never copy another robot's measured zero.
+pitch_zero_deg = 0.0
+roll_zero_deg = 0.0
 
 [speech]
 language = "en"

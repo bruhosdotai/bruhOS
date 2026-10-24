@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 from bruhos.schemas import Imu
 
@@ -35,3 +36,43 @@ class MPU6050:
 
     def close(self) -> None:
         self.bus.close()
+
+
+class ControllerIMU:
+    """Adapt Hiwonder's existing board IMU stream to the same read/close interface.
+
+    The action SDK owns the board connection; this reader does not open or close it.
+    Axes and zero offsets describe the sensor mounting on the robot.
+    """
+
+    def __init__(self, board, fall_deg=55.0, forward_sign=1, upright_axis=0,
+                 forward_axis=2, upright_sign=1, pitch_zero_deg=0.0, roll_zero_deg=0.0):
+        self.board = board
+        self.fall_deg = fall_deg
+        self.upright_axis, self.forward_axis = upright_axis, forward_axis
+        self.side_axis, = {0, 1, 2} - {upright_axis, forward_axis}
+        self.upright_sign, self.forward_sign = upright_sign, forward_sign
+        self.pitch_zero_deg, self.roll_zero_deg = pitch_zero_deg, roll_zero_deg
+        board.enable_reception()
+
+    def read(self) -> Imu:
+        deadline = time.monotonic() + 0.2
+        sample = self.board.get_imu()
+        while sample is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+            sample = self.board.get_imu()
+        if sample is None:
+            raise OSError("No IMU sample received from Hiwonder controller")
+        if len(sample) != 6 or not all(math.isfinite(v) for v in sample) or not any(sample[:3]):
+            raise ValueError("Invalid controller IMU sample")
+        up = sample[self.upright_axis] * self.upright_sign
+        forward = sample[self.forward_axis] * self.forward_sign
+        side = sample[self.side_axis]
+        pitch = (math.degrees(math.atan2(forward, up)) - self.pitch_zero_deg + 180) % 360 - 180
+        roll = math.degrees(math.atan2(side, math.hypot(up, forward))) - self.roll_zero_deg
+        fallen = abs(pitch) > self.fall_deg or abs(roll) > self.fall_deg
+        direction = (pitch > 0) if fallen and abs(pitch) >= abs(roll) else None
+        return Imu(round(roll, 2), round(pitch, 2), fallen, direction)
+
+    def close(self) -> None:
+        pass  # The action SDK retains ownership of its shared board connection.

@@ -155,16 +155,23 @@ GR00T action chunk → 16 servos is a wrong integration and is rejected.
 
 ## On a TonyPi
 
-```bash
-# on the robot (Raspberry Pi 5)
+Use Hiwonder's Pi image and installed SDK. Pause other controllers before running
+bruhOS (Ari first if installed, then stock services); restore them afterward.
+
+```sh
+python3 -m venv --system-site-packages .venv && . .venv/bin/activate
 pip install -e ".[vision,imu]"
-bruhos run "Wave hello." --body tonypi --config configs/tonypi.toml
+bruhos run "Wave hello." --body tonypi --brain rules --config configs/tonypi_pro.toml --traces traces
 ```
 
-Before the first run, open `configs/tonypi.toml` (or `tonypi_pro.toml`) and check every name under
-`[actions]` against the `ActionGroups/` directory on your robot, plus `sdk_path` for the Hiwonder
-SDK. Unmapped primitives (e.g. `grab` on a TonyPi without hands) make the skill return `failed`
-instead of guessing.
+Check SDK paths, action-group names and IMU mounting axes against your robot. The
+Pro config reads its built-in IMU through Hiwonder's existing board connection;
+`driver = "i2c"` retains the original MPU-6050 path. Only wave has passed physical
+acceptance; verify other actions and recovery mappings before use. Omit
+`--brain rules` to use configured Qwen-VL. Runtime and skill behavior are unchanged.
+
+With the separate [dashboard PR](https://github.com/bruhosdotai/bruhOS/pull/3), run
+`bruhos dashboard --traces traces` to inspect saved episodes at http://127.0.0.1:8765/.
 
 ## Skills (v0.1)
 
