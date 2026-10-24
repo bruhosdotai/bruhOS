@@ -190,6 +190,24 @@ Each step is hashed over canonical JSON and chained to the previous step; the ep
 run on a background thread, so a slow or failing sink never blocks the control loop. What goes
 on-chain is `trace_root` plus the skillpack and brain version hashes — not video, not control.
 
+## Local trace dashboard
+
+```sh
+bruhos run "Wave hello." --traces traces # simulator; no hardware required
+bruhos dashboard --traces traces
+```
+
+Open http://127.0.0.1:8765/. Use the same trace directory as the runtime; `--port`
+changes the listening port. The read-only console refreshes every two seconds and
+shows the latest 12 readable episodes, outcome filters and expandable trace details.
+It opens no hardware and changes no runtime settings.
+
+The server binds to localhost. For remote viewing, forward the port with
+`ssh -N -L 8876:127.0.0.1:8765 pi@ROBOT_IP`, then open http://127.0.0.1:8876/.
+Verification uses the existing trace hash chain, which does not cover all header
+metadata or independently prove physical completion. Live hardware status is not
+reported. Assets work offline; system fonts require no downloads.
+
 ## Layout
 
 ```

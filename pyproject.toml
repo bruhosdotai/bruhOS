@@ -36,7 +36,7 @@ X = "https://x.com/bruhos_ai"
 include = ["bruhos*"]
 
 [tool.setuptools.package-data]
-bruhos = ["eval/*.toml", "sim/*.toml"]
+bruhos = ["eval/*.toml", "sim/*.toml", "dashboard/web/*", "dashboard/web/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

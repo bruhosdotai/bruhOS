@@ -112,6 +112,13 @@ def cmd_lerobot(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(a: argparse.Namespace) -> int:
+    from bruhos.dashboard import serve
+
+    serve(a.traces, a.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bruhos", description="bruhOS — the skill OS that stands next to the robot.")
     p.add_argument("--version", action="version", version=f"bruhos {__version__}")
@@ -143,6 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     lr = sub.add_parser("lerobot", help="print LeRobot-aligned frames for a trace")
     lr.add_argument("path")
     lr.set_defaults(fn=cmd_lerobot)
+
+    dashboard = sub.add_parser("dashboard", help="inspect saved traces in a local read-only console")
+    dashboard.add_argument("--traces", default="traces", help="runtime trace directory")
+    dashboard.add_argument("--port", type=int, default=8765)
+    dashboard.set_defaults(fn=cmd_dashboard)
 
     a = p.parse_args(argv)
     return a.fn(a)

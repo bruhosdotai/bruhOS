@@ -8,3 +8,6 @@ dist/
 .env
 traces/
 .DS_Store
+
+# Local design tooling
+.21st/
