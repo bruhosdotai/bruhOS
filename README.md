@@ -87,6 +87,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | Chain sink | Builds the anchor payload; transaction submit is pluggable, enabled in v0.3 |
 | LeRobot export | Field names / shapes aligned; writing a `LeRobotDataset` is v0.2 |
 | TonyPi body (Hiwonder action groups, OpenCV color blobs, MPU-6050) | Implemented, **not yet validated on a robot** — action-group names must be checked against your image |
+| elizaOS robot bridge body (`--body eliza`, [elizaOS/research](https://github.com/elizaOS/research)) | Implemented; tested against the bridge's mock backend. Its MuJoCo backend currently refuses motion commands |
 | Isaac Lab twin / Cosmos augmentation | Scene spec only (`bruhos/sim/tabletop_task.toml`); v0.2 |
 
 ## Quick start

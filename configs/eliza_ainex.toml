@@ -1,0 +1,38 @@
+# Hiwonder AiNex (or its MuJoCo twin) through the elizaOS/research robot bridge.
+# Start the bridge from elizaOS/research/robot first, e.g.
+#   PYTHONPATH=. python -m eliza_robot.bridge.server --backend mock --port 9100
+# Authenticated (physical) bridges read the bearer token from ELIZA_AINEX_BRIDGE_AUTH_TOKEN.
+
+[body]
+name = "eliza-ainex"
+url = "ws://127.0.0.1:9100"
+turn_step_deg = 15.0                         # calibrate: measure one turn_* primitive
+fall_deg = 28.0                              # profile safety.fall_pitch_rad = 0.5
+forward_sign = 1
+
+[walk]                                       # walk.set ranges enforced by the bridge
+speed = 2                                    # 1..4
+height = 0.036                               # 0.015..0.06 m
+forward_x = 0.02                             # -0.05..0.05
+turn_yaw = 5.0                               # -10..10
+forward_s = 1.5                              # seconds of walking per `forward`
+turn_s = 1.0
+heartbeat_s = 0.25                           # must stay under the bridge deadman (1 s)
+
+# Action groups from profiles/hiwonder-ainex/profile.yaml: stand, sit, wave, bow.
+# The AiNex profile has no grab / kick / get-up groups yet, so those primitives report failure.
+[actions]
+stand = "stand"
+wave = "wave"
+
+[speech]
+language = "en"
+asr_model = "base.en"
+tts_voice = "en-us"
+
+[brain]
+name = "rules"
+
+[trace]
+root = "traces"
+sinks = ["local"]

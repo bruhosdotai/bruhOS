@@ -42,7 +42,10 @@ def _body(name: str, cfg: dict[str, Any], fall_prob: float, seed: int):
     if name == "tonypi":
         from bruhos.body.tonypi import TonyPiBody
         return TonyPiBody(cfg)
-    raise SystemExit(f"unknown body {name!r} (sim | tonypi)")
+    if name == "eliza":
+        from bruhos.body.eliza_bridge import ElizaBridgeBody
+        return ElizaBridgeBody(cfg)
+    raise SystemExit(f"unknown body {name!r} (sim | tonypi | eliza)")
 
 
 def cmd_run(a: argparse.Namespace) -> int:
@@ -119,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
 
     r = sub.add_parser("run", help="run one English instruction")
     r.add_argument("instruction")
-    r.add_argument("--body", default="sim", choices=["sim", "tonypi"])
+    r.add_argument("--body", default="sim", choices=["sim", "tonypi", "eliza"])
     r.add_argument("--brain", default=None, help="rules | openai | qwen_vl | groot_s2 | lerobot_policy")
     r.add_argument("--config")
     r.add_argument("--traces")

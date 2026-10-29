@@ -23,6 +23,7 @@ dependencies = []
 vision = ["opencv-python-headless>=4.8", "numpy>=1.24"]
 imu = ["smbus2>=0.4"]
 speech = ["faster-whisper>=1.0"]
+eliza = ["websockets>=12"]
 dev = ["pytest>=8"]
 
 [project.scripts]
