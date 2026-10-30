@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any, Callable
 
@@ -24,9 +25,21 @@ Skill catalog:
 Transport = Callable[[str, dict[str, str], bytes, float], bytes]
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect. urllib would replay the Authorization header to any origin in Location,
+    and a redirected POST becomes a GET without the body anyway. Point base_url at the final endpoint."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl} refused (brain calls never follow "
+                                     "redirects; set base_url to the final endpoint)", headers, fp)
+
+
+_opener = urllib.request.build_opener(_NoRedirect)
+
+
 def http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> bytes:
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with _opener.open(req, timeout=timeout) as r:
         return r.read()
 
 

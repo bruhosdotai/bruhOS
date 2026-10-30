@@ -138,6 +138,9 @@ export BRUHOS_LLM_BASE_URL=http://<gpu-host>:8000/v1
 bruhos run "Kick the ball." --brain qwen_vl
 ```
 
+Brain HTTP calls never follow redirects, so an API key cannot be forwarded to another origin: point
+`BRUHOS_LLM_BASE_URL` (or `base_url`) at the final endpoint.
+
 All brains receive the skill catalog and the observation JSON and must answer with:
 
 ```json
