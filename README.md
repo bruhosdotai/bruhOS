@@ -80,6 +80,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | `rules` brain (offline English planner, no model) | Working |
 | `openai` brain (any OpenAI-compatible endpoint) | Implemented; tested against a mocked endpoint |
 | `qwen_vl` brain (local vLLM, optional camera frame) | Implemented; tested against a mocked endpoint |
+| `lfm3_omni` brain (Liquid LFM3-Omni-2B in llama.cpp on the Pi 5, optional camera frame) | Implemented; sim eval run against the real model on a Pi 5 |
 | `groot_s2` brain | Stub: contract + joint-action guard; real GR00T wrapper is v0.2 |
 | `lerobot_policy` brain | Interface: HTTP client for a skill-JSON policy server |
 | Trace hashing, Merkle root, verify, local sink | Working, tested |
@@ -125,6 +126,17 @@ Sim baseline for the `rules` brain (kinematic sim, not hardware):
 | no falls | 20 / 20 | 1 (scripted, "Stand up.") | 1 |
 | `--fall-prob 0.05 --seed 1` | 16 / 20 | 28 | 24 |
 
+Same prompts with the `lfm3_omni` brain: LFM3-Omni-2B Q4_0 in llama.cpp on a Raspberry Pi 5 (8 GB, CPU
+only), 3–12 s per plan depending on its length:
+
+| Setting | Completion | Falls | Recovered |
+| --- | --- | --- | --- |
+| no falls | 18 / 20 | 1 (scripted, "Stand up.") | 1 |
+| `--fall-prob 0.05 --seed 1` | 15 / 20 | 26 | 23 |
+
+It misses "Grab the blue one." (grabs before walking to it) and "Place the green cube into the box."
+(asks for `green_cube`; the sim calls it `green_block`).
+
 ## Brains
 
 ```bash
@@ -136,10 +148,22 @@ bruhos run "Wave hello." --brain openai
 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
 export BRUHOS_LLM_BASE_URL=http://<gpu-host>:8000/v1
 bruhos run "Kick the ball." --brain qwen_vl
+
+# Liquid LFM3-Omni-2B on the Pi itself: CPU only, ~3 GB RAM, no GPU host
+llama-server -hf LiquidAI/LFM3-Omni-2B-GGUF:Q4_0 --jinja --swa-full -ub 64 -cms 64 \
+  -t 3 -tb 4 -c 8192 --temp 0 --port 8080
+bruhos run "Kick the ball." --brain lfm3_omni
 ```
 
 Brain HTTP calls never follow redirects, so an API key cannot be forwarded to another origin: point
 `BRUHOS_LLM_BASE_URL` (or `base_url`) at the final endpoint.
+
+The `lfm3_omni` brain turns LFM3's thinking off (plans in a few seconds instead of ~50 s on a Pi 5) and
+constrains the reply with a JSON schema built from the skill catalog, so the model cannot produce a
+skill, arg or choice outside the whitelist. A 2B model plans better from a short observation (object
+names, distances, what it holds) and a few worked examples, so that is what it gets; the examples use
+objects that are not in the sim or the eval. `--swa-full` keeps the catalog prompt cached between
+plans. Weights: [LFM Open License v1.0](https://www.liquid.ai/lfm-license).
 
 All brains receive the skill catalog and the observation JSON and must answer with:
 
@@ -199,7 +223,7 @@ on-chain is `trace_root` plus the skillpack and brain version hashes — not vid
 ```
 bruhos/
   runtime/        observe · dispatch · recover · trace
-  brain/adapters/ rules · openai · qwen_vl · groot_s2 (stub) · lerobot_policy
+  brain/adapters/ rules · openai · qwen_vl · lfm3_omni · groot_s2 (stub) · lerobot_policy
   skills/         whitelist + implementations (written once against body primitives)
   body/           Body interface · TonyPi · perception (OpenCV) · MPU-6050
   speech/         English-first ASR / TTS

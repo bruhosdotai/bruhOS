@@ -68,10 +68,15 @@ class OpenAICompatPlanner(Planner):
         msgs.append({"role": "user", "content": self.user_content(instruction, obs)})
         return msgs
 
-    def _complete(self, msgs: list[dict[str, Any]]) -> list[SkillCall]:
+    def extra_payload(self, catalog: list[dict[str, Any]]) -> dict[str, Any]:
+        """Server-specific request fields merged into the payload (subclasses override)."""
+        return {}
+
+    def _complete(self, msgs: list[dict[str, Any]], catalog: list[dict[str, Any]]) -> list[SkillCall]:
         payload: dict[str, Any] = {"model": self.model, "messages": msgs, "temperature": 0}
         if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
+        payload.update(self.extra_payload(catalog))
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -80,8 +85,8 @@ class OpenAICompatPlanner(Planner):
         return parse_plan(content)
 
     def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
-        return self._complete(self.messages(instruction, obs, catalog))
+        return self._complete(self.messages(instruction, obs, catalog), catalog)
 
     def replan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]],
                history: list[dict[str, Any]]) -> list[SkillCall]:
-        return self._complete(self.messages(instruction, obs, catalog, history))
+        return self._complete(self.messages(instruction, obs, catalog, history), catalog)
