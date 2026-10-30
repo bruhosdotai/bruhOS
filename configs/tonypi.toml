@@ -43,6 +43,9 @@ tts_voice = "en-us"
 
 [brain]
 name = "rules"
+# On-robot model, no GPU: LFM3-Omni-2B in llama-server on this Pi (README, "Brains").
+# name = "lfm3_omni"
+# base_url = "http://127.0.0.1:8080/v1"
 
 [trace]
 root = "traces"

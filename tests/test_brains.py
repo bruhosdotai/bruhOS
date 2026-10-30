@@ -4,6 +4,7 @@ import pytest
 
 from bruhos.brain import IntegrationError, make_planner, parse_plan
 from bruhos.brain.adapters.groot_s2 import GR00TS2Planner
+from bruhos.brain.adapters.lfm3_omni import LFM3OmniPlanner, plan_schema
 from bruhos.brain.adapters.lerobot_policy import LeRobotPolicyPlanner
 from bruhos.brain.adapters.openai import OpenAICompatPlanner
 from bruhos.brain.adapters.qwen_vl import QwenVLPlanner
@@ -35,6 +36,7 @@ def _run(brain):
     lambda: make_planner("rules"),
     lambda: OpenAICompatPlanner(base_url="http://x/v1", api_key="k", transport=fake_chat([])),
     lambda: QwenVLPlanner(transport=fake_chat([])),
+    lambda: LFM3OmniPlanner(transport=fake_chat([])),
     lambda: GR00TS2Planner(reasoner=lambda frame, text, obs: PLAN),
     lambda: LeRobotPolicyPlanner(transport=lambda *a: json.dumps(PLAN_JSON).encode()),
 ])
@@ -61,6 +63,36 @@ def test_qwen_vl_attaches_frame():
     QwenVLPlanner(transport=fake_chat(cap), frame_provider=lambda: b"\xff\xd8jpeg").plan("Wave.", SimBody().observe(), [])
     content = cap[0][2]["messages"][-1]["content"]
     assert content[0]["type"] == "image_url" and content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_lfm3_omni_request_shape():
+    from bruhos.skills import CATALOG
+
+    cap = []
+    LFM3OmniPlanner(transport=fake_chat(cap), frame_provider=lambda: b"\xff\xd8jpeg").plan("Wave.", SimBody().observe(), CATALOG)
+    url, _, payload = cap[0]
+    assert url == "http://127.0.0.1:8080/v1/chat/completions"
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False}
+    assert payload["response_format"]["type"] == "json_schema"
+    image, text = payload["messages"][-1]["content"]
+    assert image["type"] == "image_url" and text["text"].endswith("Instruction: Wave.")
+    assert '"name": "red_block"' in text["text"] and "bearing_deg" not in text["text"]
+    assert payload["messages"][1]["role"] == "user" and payload["messages"][2]["role"] == "assistant"
+
+
+def test_lfm3_omni_schema_only_admits_catalog_skills():
+    from bruhos.skills import CATALOG
+
+    calls = plan_schema(CATALOG)["properties"]["plan"]["items"]["anyOf"]
+    assert sorted(c["properties"]["skill"]["const"] for c in calls) == sorted(s["skill"] for s in CATALOG)
+    kick = next(c for c in calls if c["properties"]["skill"]["const"] == "kick")["properties"]["args"]
+    assert kick["properties"]["foot"]["enum"] == ["left", "right"] and kick["additionalProperties"] is False
+
+
+def test_lfm3_omni_unconstrained_falls_back_to_json_object():
+    cap = []
+    LFM3OmniPlanner(constrain=False, transport=fake_chat(cap)).plan("Wave.", SimBody().observe(), [])
+    assert cap[0][2]["response_format"] == {"type": "json_object"}
 
 
 def test_groot_joint_chunk_is_integration_error():

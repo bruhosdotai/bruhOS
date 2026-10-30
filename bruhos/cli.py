@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("run", help="run one English instruction")
     r.add_argument("instruction")
     r.add_argument("--body", default="sim", choices=["sim", "tonypi", "eliza"])
-    r.add_argument("--brain", default=None, help="rules | openai | qwen_vl | groot_s2 | lerobot_policy")
+    r.add_argument("--brain", default=None, help="rules | openai | qwen_vl | lfm3_omni | groot_s2 | lerobot_policy")
     r.add_argument("--config")
     r.add_argument("--traces")
     r.add_argument("--fall-prob", type=float, default=0.0)
