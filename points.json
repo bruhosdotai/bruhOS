@@ -1,0 +1,138 @@
+{
+ "generated_at": "2026-10-31T16:03:52.988500Z",
+ "repo": "bruhosdotai/bruhOS",
+ "rules": {
+  "supply_pct": 5.0,
+  "min_points": 20.0,
+  "max_share": 0.15,
+  "effective_max_share": 1.0,
+  "snapshot_at": null,
+  "daily_points": 60.0
+ },
+ "totals": {
+  "contributors": 2,
+  "eligible": 1,
+  "points": 30.0,
+  "eligible_points": 20.0,
+  "merged_prs": 3,
+  "pool_allocated": 1.0,
+  "pool_unallocated": 0.0
+ },
+ "contributors": [
+  {
+   "login": "markeljan",
+   "points": 20.0,
+   "merged_prs": 2,
+   "bounties": 0.0,
+   "disqualified": false,
+   "first_at": "2026-10-31T05:04:37Z",
+   "last_at": "2026-10-31T06:11:53Z",
+   "events": [
+    {
+     "kind": "merged_pr",
+     "ref": {
+      "type": "pr",
+      "number": 7,
+      "title": "Add lfm3_omni brain: Liquid LFM3-Omni-2B on the Pi 5 (llama.cpp)",
+      "url": "https://github.com/bruhosdotai/bruhOS/pull/7"
+     },
+     "at": "2026-10-31T06:11:53Z",
+     "points": 10.0,
+     "credited": 10.0,
+     "detail": {
+      "label": null
+     }
+    },
+    {
+     "kind": "merged_pr",
+     "ref": {
+      "type": "pr",
+      "number": 5,
+      "title": "Never follow redirects in the brain HTTP transport",
+      "url": "https://github.com/bruhosdotai/bruhOS/pull/5"
+     },
+     "at": "2026-10-31T05:04:37Z",
+     "points": 10.0,
+     "credited": 10.0,
+     "detail": {
+      "label": null
+     }
+    }
+   ],
+   "avatar": "https://avatars.githubusercontent.com/u/12901349?v=4",
+   "eligible": true,
+   "pool_share": 1.0,
+   "supply_pct": 5.0,
+   "rank": 1
+  },
+  {
+   "login": "SYMBaiEX",
+   "points": 10.0,
+   "merged_prs": 1,
+   "bounties": 0.0,
+   "disqualified": false,
+   "first_at": "2026-10-31T06:12:07Z",
+   "last_at": "2026-10-31T06:12:07Z",
+   "events": [
+    {
+     "kind": "merged_pr",
+     "ref": {
+      "type": "pr",
+      "number": 3,
+      "title": "Add local read-only trace dashboard",
+      "url": "https://github.com/bruhosdotai/bruhOS/pull/3"
+     },
+     "at": "2026-10-31T06:12:07Z",
+     "points": 10.0,
+     "credited": 10.0,
+     "detail": {
+      "label": null
+     }
+    }
+   ],
+   "avatar": "https://avatars.githubusercontent.com/u/192078165?v=4",
+   "eligible": false,
+   "pool_share": 0.0,
+   "supply_pct": 0.0,
+   "rank": 2
+  }
+ ],
+ "recent": [
+  {
+   "user": "SYMBaiEX",
+   "kind": "merged_pr",
+   "ref": {
+    "type": "pr",
+    "number": 3,
+    "title": "Add local read-only trace dashboard",
+    "url": "https://github.com/bruhosdotai/bruhOS/pull/3"
+   },
+   "at": "2026-10-31T06:12:07Z",
+   "credited": 10.0
+  },
+  {
+   "user": "markeljan",
+   "kind": "merged_pr",
+   "ref": {
+    "type": "pr",
+    "number": 7,
+    "title": "Add lfm3_omni brain: Liquid LFM3-Omni-2B on the Pi 5 (llama.cpp)",
+    "url": "https://github.com/bruhosdotai/bruhOS/pull/7"
+   },
+   "at": "2026-10-31T06:11:53Z",
+   "credited": 10.0
+  },
+  {
+   "user": "markeljan",
+   "kind": "merged_pr",
+   "ref": {
+    "type": "pr",
+    "number": 5,
+    "title": "Never follow redirects in the brain HTTP transport",
+    "url": "https://github.com/bruhosdotai/bruhOS/pull/5"
+   },
+   "at": "2026-10-31T05:04:37Z",
+   "credited": 10.0
+  }
+ ]
+}
