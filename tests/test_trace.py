@@ -1,3 +1,5 @@
+import copy
+
 from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.runtime import Runtime
 from bruhos.sim.kinematic import SimBody
@@ -47,3 +49,21 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_episode_header_is_part_of_the_commitment():
+    """Every claim the header makes must be covered by trace_root.
+
+    seal() only hashed episode_id, instruction and skillpack_hash, so success,
+    falls, recoveries, end_reason, plan, brain and body could be rewritten
+    without breaking verify_episode().
+    """
+    ep = _episode()
+    assert verify_episode(ep)
+    for name, value in (("success", not ep.success), ("falls", ep.falls + 1),
+                        ("recoveries", ep.recoveries + 1), ("end_reason", "forged"),
+                        ("plan", [{"skill": "forged"}]), ("brain", "forged"),
+                        ("body", "forged"), ("brain_version", "forged")):
+        tampered = copy.deepcopy(ep)
+        setattr(tampered, name, value)
+        assert not verify_episode(tampered), f"{name} is not covered by trace_root"

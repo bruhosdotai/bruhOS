@@ -33,10 +33,25 @@ def merkle_root(leaves: list[str]) -> str:
     return level[0].hex()
 
 
+SEALED_HEADER = (
+    "episode_id", "instruction", "brain", "brain_version", "body", "started_at",
+    "ended_at", "plan", "success", "end_reason", "falls", "recoveries", "skillpack_hash",
+)
+
+
+def episode_header(ep: Episode) -> dict[str, Any]:
+    """Header fields the trace_root commits to.
+
+    Everything the dashboard and ``bruhos verify`` present as a claim is sealed,
+    not just the id/instruction/skillpack, so a rewritten success flag, fall
+    count, plan or end_reason breaks verification instead of passing silently.
+    """
+    return {k: getattr(ep, k) for k in SEALED_HEADER}
+
+
 def seal(ep: Episode) -> str:
     """Fill step hashes and the episode trace_root. Returns trace_root."""
-    prev = sha256_hex(canonical({"episode_id": ep.episode_id, "instruction": ep.instruction,
-                                 "skillpack_hash": ep.skillpack_hash}))
+    prev = sha256_hex(canonical(episode_header(ep)))
     for s in ep.steps:
         s.hash = step_hash(s, prev)
         prev = s.hash
