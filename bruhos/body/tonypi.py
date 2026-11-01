@@ -39,6 +39,10 @@ class TonyPiBody(Body):
         self.name = body.get("name", "tonypi")
         self.turn_step_deg = float(body.get("turn_step_deg", 15.0))
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
+        unknown = set(cfg.get("actions", {})) - set(PRIMITIVES)
+        if unknown:
+            raise ValueError(f"unknown primitives in [actions]: {sorted(unknown)} "
+                             f"(valid: {', '.join(PRIMITIVES)})")
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
         self._lock = threading.Lock()
