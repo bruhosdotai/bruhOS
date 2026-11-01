@@ -1,7 +1,7 @@
 # Contributing to bruhOS
 
 Thanks for building the bruh. This page covers how to send work and how contributor points —
-and the contributor token pool — are calculated.
+and the contributor pool — are calculated.
 
 ## Sending work
 
@@ -13,17 +13,16 @@ and the contributor token pool — are calculated.
 
 ## Contributor pool
 
-**5% of the total bruhOS token supply** is reserved for contributors. It is split by GitHub
-contribution points only — nothing else.
+The contributor pool is split by GitHub contribution points only — nothing else.
 
 ```
-your tokens = your points ÷ total points of all eligible contributors × 5% of total supply
+your share = your points ÷ total points of all eligible contributors
 ```
 
 - **Eligible:** at least **20 points** and not disqualified.
-- **The whole 5% is always distributed** to eligible contributors. Nothing is kept back.
+- **The whole pool is always distributed** to eligible contributors. Nothing is kept back.
 - **Cap:** with 7 or more eligible contributors, one contributor receives at most **15% of the
-  pool** (0.75% of total supply), and anything above the cap is redistributed to the others.
+  pool**, and anything above the cap is redistributed to the others.
   With fewer than 7, there is no cap and the pool is split purely by points.
 - **Core team** members are not part of this pool.
 - **Snapshot:** points are frozen about 30 days before TGE (targeted for end of 2026). The final
