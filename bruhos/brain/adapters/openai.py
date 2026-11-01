@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable
 
+from bruhos._net import require_secure
 from bruhos.brain.base import Planner, parse_plan
 from bruhos.schemas import Observation, SkillCall
 
@@ -37,10 +38,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _opener = urllib.request.build_opener(_NoRedirect)
 
 
+MAX_RESPONSE_BYTES = 4 << 20
+PLACEHOLDER_KEYS = ("", "EMPTY")
+
+
 def http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> bytes:
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     with _opener.open(req, timeout=timeout) as r:
-        return r.read()
+        data = r.read(MAX_RESPONSE_BYTES + 1)
+    if len(data) > MAX_RESPONSE_BYTES:
+        raise ValueError(f"brain response larger than {MAX_RESPONSE_BYTES} bytes")
+    return data
 
 
 class OpenAICompatPlanner(Planner):
@@ -48,10 +56,12 @@ class OpenAICompatPlanner(Planner):
 
     def __init__(self, base_url: str | None = None, model: str | None = None, api_key: str | None = None,
                  api_key_env: str = "OPENAI_API_KEY", timeout: float = 20.0, json_mode: bool = True,
-                 transport: Transport | None = None):
+                 transport: Transport | None = None, allow_insecure: bool = False):
         self.base_url = (base_url or os.environ.get("BRUHOS_LLM_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
         self.model = model or os.environ.get("BRUHOS_LLM_MODEL") or "gpt-4o-mini"
         self.api_key = api_key if api_key is not None else os.environ.get(api_key_env, "")
+        if self.api_key not in PLACEHOLDER_KEYS:
+            require_secure(self.base_url, "the API key", allow_insecure)
         self.timeout = timeout
         self.json_mode = json_mode
         self.transport = transport or http_post

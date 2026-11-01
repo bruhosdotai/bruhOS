@@ -53,7 +53,8 @@ class EspeakTTS(TTS):
             raise RuntimeError("espeak-ng not found (apt install espeak-ng)")
 
     def say(self, text: str) -> None:
-        subprocess.run([self.bin, "-v", self.cfg.tts_voice, text], check=False)
+        # Text goes in on stdin: as an argument, text starting with "-" is parsed as an option (e.g. -w <file>).
+        subprocess.run([self.bin, "-v", self.cfg.tts_voice, "--stdin"], input=text.encode(), check=False)
 
 
 class PrintTTS(TTS):
