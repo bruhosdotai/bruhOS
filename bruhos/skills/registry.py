@@ -84,6 +84,17 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        # Coercion may change a value's representation ("20" -> 20) but never its
+        # meaning: a non-string stringified into a phantom target ("123", "True"),
+        # a boolean read as a number (True -> 1 step, True -> 1.0 m), or a
+        # fractional float truncated to an int (2.9 -> 2 steps) would execute a
+        # different call than the brain sent, so reject those instead.
+        if a.type is str and not isinstance(v, str):
+            raise SkillError(f"{call.skill}.{k}: expected str, got {v!r}")
+        if a.type in (int, float) and isinstance(v, bool):
+            raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}")
+        if a.type is int and isinstance(v, float) and not v.is_integer():
+            raise SkillError(f"{call.skill}.{k}: expected int, got {v!r}")
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:
