@@ -119,6 +119,10 @@ class Runtime:
                 ep.end_reason = "stopped"
                 ep.success = call.skill == "stop" and plan[-1].skill == "stop"
                 return
+            # A stop can arrive inside the skill, including its final primitive.
+            if self._stop.is_set():
+                ep.end_reason = "stopped"
+                return
             if outcome.status is Status.FAILED:
                 if replans >= self.cfg.max_replans:
                     ep.end_reason = f"{call.skill} failed: {outcome.detail}"

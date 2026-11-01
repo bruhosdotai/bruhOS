@@ -1,12 +1,14 @@
 import threading
 import time
 
+import pytest
+
 from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.brain.base import Planner
 from bruhos.runtime import Runtime
 from bruhos.schemas import SkillCall
 from bruhos.sim.kinematic import SimBody, World
-from bruhos.trace import Sink, SinkDispatcher
+from bruhos.trace import Sink, SinkDispatcher, verify_episode
 
 
 class FixedPlanner(Planner):
@@ -60,6 +62,41 @@ def test_stop_preempts_running_skill():
     assert time.monotonic() - t0 < 1.0
     assert ep.end_reason == "stopped" or ep.steps[-1].outcome["status"] in {"stopped", "failed"}
     assert body._halted.is_set()
+
+
+@pytest.mark.parametrize("instruction, status", [
+    ("Wave hello.", "ok"),
+    ("Drop it.", "failed"),
+    ("Kick.", "fallen"),
+])
+def test_stop_during_final_skill_ends_without_completion_or_replanning(instruction, status):
+    class StopAfterAction(SimBody):
+        def act(self, primitive):
+            result = super().act(primitive)
+            rt.stop()
+            return result
+
+    class CountingRulesPlanner(RulesPlanner):
+        replans = 0
+
+        def replan(self, instruction, obs, catalog, history):
+            self.replans += 1
+            return super().replan(instruction, obs, catalog, history)
+
+    body = StopAfterAction(falls_at={1})
+    brain = CountingRulesPlanner()
+    rt = Runtime(body, brain)
+    ep = rt.run(instruction)
+
+    assert not ep.success
+    assert ep.end_reason == "stopped"
+    assert brain.replans == 0
+    assert len(ep.steps) == 1
+    assert ep.steps[0].outcome["status"] == status
+    assert ep.falls == (1 if status == "fallen" else 0)
+    assert ep.recoveries == 0
+    assert body._halted.is_set()
+    assert verify_episode(ep)
 
 
 def test_slow_sink_does_not_block_control_loop():
