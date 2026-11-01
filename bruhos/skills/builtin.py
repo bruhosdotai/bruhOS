@@ -119,15 +119,18 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
         if ctx.should_stop():
             return Outcome(Status.STOPPED, "stop requested")
         if obs.line.offset > LINE_DEADBAND:
-            ctx.body.act("turn_right")
+            primitive = "turn_right"
         elif obs.line.offset < -LINE_DEADBAND:
-            ctx.body.act("turn_left")
+            primitive = "turn_left"
         else:
-            ctx.body.act("forward")
-            done += 1
+            primitive = "forward"
+        ctx.body.act(primitive)
         obs = ctx.body.observe()
         if (f := _fallen(obs)):
+            f.data["steps"] = done
             return f
+        if primitive == "forward":
+            done += 1
         if not obs.line.visible:
             return Outcome(Status.OK, "end of line", {"steps": done})
     if done < args["steps"]:
