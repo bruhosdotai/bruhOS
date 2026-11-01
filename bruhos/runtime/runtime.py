@@ -24,6 +24,7 @@ class RuntimeConfig:
     max_recoveries: int = 3        # stand_up attempts per episode
     max_replans: int = 1           # brain re-plans after a failed skill
     max_skill_steps: int = 120     # primitive budget inside one skill
+    max_plan_calls: int = 64       # skill calls per plan from the brain
 
 
 class Runtime:
@@ -73,6 +74,8 @@ class Runtime:
         try:
             raw = (self.brain.replan(ep.instruction, obs, CATALOG, history) if history
                    else self.brain.plan(ep.instruction, obs, CATALOG))
+            if len(raw) > self.cfg.max_plan_calls:
+                raise ValueError(f"plan has {len(raw)} calls; the budget is {self.cfg.max_plan_calls}")
             plan = [validate(c) for c in raw]
         except (SkillError, IntegrationError, ValueError) as e:
             self._record(ep, "rejected", SkillCall("plan", {"error": type(e).__name__}),

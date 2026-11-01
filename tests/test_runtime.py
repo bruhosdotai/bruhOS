@@ -3,7 +3,7 @@ import time
 
 from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.brain.base import Planner
-from bruhos.runtime import Runtime
+from bruhos.runtime import Runtime, RuntimeConfig
 from bruhos.schemas import SkillCall
 from bruhos.sim.kinematic import SimBody, World
 from bruhos.trace import Sink, SinkDispatcher
@@ -43,6 +43,17 @@ def test_unregistered_skill_from_brain_never_reaches_body():
     ep = Runtime(body, FixedPlanner([SkillCall("wave"), SkillCall("moonwalk")])).run("Dance.")
     assert not ep.success
     assert ep.steps[0].kind == "rejected"
+    assert "wave" not in body.world.events
+
+
+def test_plan_length_capped():
+    budget = RuntimeConfig().max_plan_calls
+    at_cap = Runtime(SimBody(), FixedPlanner([SkillCall("wave")] * budget)).run("Wave.")
+    assert at_cap.success
+    body = SimBody()
+    ep = Runtime(body, FixedPlanner([SkillCall("wave")] * (budget + 1))).run("Wave forever.")
+    assert not ep.success
+    assert ep.steps[0].kind == "rejected" and "budget" in ep.end_reason
     assert "wave" not in body.world.events
 
 
