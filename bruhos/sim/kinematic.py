@@ -206,7 +206,10 @@ class SimBody(Body):
 
     def _stand_up(self, front: bool) -> bool:
         w = self.world
-        if not w.fallen or w.fell_forward is not front:
+        # An unknown fall direction must not brick recovery: when
+        # fell_forward is None, either attempt may stand the robot up.
+        # A known direction still requires its matching primitive.
+        if not w.fallen or (w.fell_forward is not None and w.fell_forward is not front):
             return False
         w.fallen, w.fell_forward = False, None
         w.events.append("stood_up")
