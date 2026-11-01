@@ -146,7 +146,12 @@ def grab(ctx: SkillContext, args: dict) -> Outcome:
 
 @skill(SkillSpec("release", "Open the hand."))
 def release(ctx: SkillContext, args: dict) -> Outcome:
-    before = ctx.body.observe().holding
+    obs = ctx.body.observe()
+    if (f := _fallen(obs)):
+        return f
+    before = obs.holding
+    if before is None:
+        return Outcome(Status.FAILED, "hand empty")
     if not ctx.body.act("release"):
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.FAILED, "hand empty")
