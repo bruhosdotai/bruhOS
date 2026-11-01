@@ -182,7 +182,6 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
             "avatar": avatars.get(login, f"https://github.com/{login}.png?size=96"),
             "eligible": login in shares,
             "pool_share": round(share, 6),
-            "supply_pct": round(share * pool["supply_pct"], 6),
         })
     rows.sort(key=lambda r: (-r["points"], r["login"].lower()))
     for i, r in enumerate(rows, 1):
@@ -197,7 +196,7 @@ def compute(prs: list[dict], issues: list[dict], rules: dict, now: datetime,
         "generated_at": now.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         "repo": repo_name,
         "rules": {
-            "supply_pct": pool["supply_pct"], "min_points": pool["min_points"],
+            "min_points": pool["min_points"],
             "max_share": pool["max_share"],
             "effective_max_share": round(effective_cap(len(shares), pool["max_share"]), 6),
             "snapshot_at": pool.get("snapshot_at") or None,
