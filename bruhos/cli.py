@@ -108,9 +108,13 @@ def cmd_verify(a: argparse.Namespace) -> int:
 
 
 def cmd_lerobot(a: argparse.Namespace) -> int:
-    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames
+    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames, verify_episode
 
     ep = load_episode(a.path)
+    if not verify_episode(ep):
+        # A trace that fails its own hash chain must not become training data.
+        print(f"TAMPERED  trace_root={ep.trace_root}  steps={len(ep.steps)}")
+        return 2
     print(json.dumps({"features": LEROBOT_FEATURES, "frames": to_lerobot_frames(ep)}, indent=2))
     return 0
 
