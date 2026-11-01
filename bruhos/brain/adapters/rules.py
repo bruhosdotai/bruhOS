@@ -46,7 +46,12 @@ class RulesPlanner(Planner):
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
-                obj = obj if obj not in (None, "line") else "block"
+                if obj in (None, "line"):
+                    # No referent: a bare pronoun with an empty hand names
+                    # nothing, and a line is not a grabbable object, so
+                    # falling back to "block" would certify delivery of an
+                    # arbitrary block as success. No plan instead.
+                    return []
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
                     _c("walk_toward", target="box"), _c("release")]
 
