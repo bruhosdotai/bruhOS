@@ -38,6 +38,11 @@ class LocalSink(Sink):
         return {"path": str(self.writer.write(ep))}
 
 
+# Loopback/LAN endpoints (a local Kubo node, a LAN collector) must not be routed through an
+# ambient proxy: it would receive whole episodes. Inject a transport for that case.
+_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 class IpfsSink(Sink):
     """Adds the episode (header + steps) to an IPFS node through the Kubo HTTP API."""
 
@@ -54,7 +59,7 @@ class IpfsSink(Sink):
                 f"Content-Type: application/json\r\n\r\n").encode() + payload + f"\r\n--{boundary}--\r\n".encode()
         req = urllib.request.Request(f"{self.api}/api/v0/add?pin=true&cid-version=1", data=body, method="POST",
                                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+        with _opener.open(req, timeout=self.timeout) as r:
             res = json.loads(r.read())
         return {"cid": res["Hash"]}
 
