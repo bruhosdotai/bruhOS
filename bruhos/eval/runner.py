@@ -37,7 +37,10 @@ def check(expect: str, ep: Episode, world: World) -> bool:
         if o is None:
             return False
         dist, bearing = world.relative(o)
-        return ep.success and (dist <= NEAR_M if kind == "near" else abs(bearing) <= FACING_DEG)
+        # Judge at the resolution the body reports to the skill (SimBody.observe: 1 mm, 0.01 deg), so a goal
+        # the skill correctly saw as met is not failed on residue below what any observation can show.
+        dist, bearing = round(dist, 3), round(abs(bearing), 2)
+        return ep.success and (dist <= NEAR_M if kind == "near" else bearing <= FACING_DEG)
     if kind == "success":
         return ep.success
     if kind == "stopped":
