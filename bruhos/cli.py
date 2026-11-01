@@ -64,7 +64,7 @@ def cmd_run(a: argparse.Namespace) -> int:
         rt.stop()
         return 130
     finally:
-        sinks.flush(5)
+        trace_complete = sinks.flush(5)
         body.close()
     for s in ep.steps:
         o = s.outcome
@@ -74,6 +74,10 @@ def cmd_run(a: argparse.Namespace) -> int:
                       "falls": ep.falls, "recoveries": ep.recoveries, "trace_root": ep.trace_root}, indent=2))
     for _, sink, receipt in sinks.receipts:
         print(f"  {sink}: {receipt}")
+    if not trace_complete or any(sink == "local" and isinstance(receipt, str)
+                                 for _, sink, receipt in sinks.receipts):
+        print("Local trace could not be saved completely.", file=sys.stderr)
+        return 2
     return 0 if ep.success else 1
 
 
