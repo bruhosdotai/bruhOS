@@ -6,6 +6,10 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
+def _tokens(text: str) -> set[str]:
+    return {t for t in text.lower().replace("-", " ").replace("_", " ").split() if t}
+
+
 @dataclass
 class Detection:
     label: str                      # "block", "box", "ball", "face", ...
@@ -19,9 +23,9 @@ class Detection:
         return f"{self.color}_{self.label}" if self.color else self.label
 
     def matches(self, target: str) -> bool:
-        """`red_block`, `red`, `block`, `box` all resolve against label/color."""
-        tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
-        have = {self.label.lower()} | ({self.color.lower()} if self.color else set())
+        """`red_block`, `red block`, `red`, `block`, `box` all resolve against label/color."""
+        tokens = _tokens(target) - {"the", "one"}
+        have = _tokens(self.label) | (_tokens(self.color) if self.color else set())
         return bool(tokens) and tokens <= have
 
 
