@@ -43,6 +43,10 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            if obj == "box":
+                # The box is the container itself: it cannot be grabbed or put
+                # into itself, so there is no plan.
+                return []
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
@@ -64,6 +68,10 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if obj == "box":
+                # The box is the container other objects are put into; no body
+                # can grab it, so there is no plan (like any impossible request).
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
