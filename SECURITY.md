@@ -6,7 +6,7 @@ bruhOS drives a physical robot, so we treat security bugs as safety bugs.
 
 Please report vulnerabilities privately through
 [GitHub private vulnerability reporting](https://github.com/bruhosdotai/bruhOS/security/advisories/new)
-or by email to bruhos2027@gmail.com. Public issues are fine for low-risk hardening.
+or by email to admin@bruhos.ai. Public issues are fine for low-risk hardening.
 
 Include what an attacker controls (brain output, network, config, a web page), what they gain, and a
 minimal reproduction if you have one. We aim to reply within 3 days and to ship a fix with a regression
