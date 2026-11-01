@@ -102,11 +102,11 @@ class SimBody(Body):
 
     def act(self, primitive: str) -> bool:
         w = self.world
-        self.t += STEP_S
         if self._halted.is_set():
             return False
         if w.fallen and primitive not in {"stand_up_front", "stand_up_back"}:
             return False
+        self.t += STEP_S
         if primitive in LOCOMOTION:
             self.n_locomotion += 1
             if self.n_locomotion in self.falls_at or self.rng.random() < self.fall_prob:
