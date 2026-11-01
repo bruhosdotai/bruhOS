@@ -71,6 +71,10 @@ class ElizaBridgeBody(Body):
             "heartbeat_s": float(walk.get("heartbeat_s", 0.25)),
         }
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
+        unknown = set(cfg.get("actions", {})) - set(PRIMITIVES)
+        if unknown:
+            raise ValueError(f"unknown primitives in [actions]: {sorted(unknown)} "
+                             f"(valid: {', '.join(PRIMITIVES)})")
         self._halted = threading.Event()
         self._closed = threading.Event()
         self._lock = threading.Lock()
