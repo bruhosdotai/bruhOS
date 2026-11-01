@@ -266,6 +266,11 @@ tests/
 | **v0.3** | Two bodies: TonyPi skills + arm with π0.5 / SmolVLA; ChainSink on | Walk, see, talk — and grasp — as separate layers |
 | later | On-device VLA only with Jetson-class hardware | Still no GR00T whole-body head on a Pi 5 |
 
+## Team
+
+bruhOS was founded by Baoger ([@baogerbao](https://x.com/baogerbao) on X,
+[@baogermakesbao](https://github.com/baogermakesbao) on GitHub).
+
 ## Contributing
 
 PRs welcome, including through [Slop](https://slop.cash/projects/bruhos). Rules in
