@@ -51,6 +51,11 @@ class RulesPlanner(Planner):
                     _c("walk_toward", target="box"), _c("release")]
 
         if has("kick"):
+            # Kicking cannot aim at a destination: if the instruction also
+            # names a box destination, kicking anyway would silently drop
+            # the destination and report success, so it gets no plan instead.
+            if into_box:
+                return []
             foot = "left" if has("left") else "right"
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
