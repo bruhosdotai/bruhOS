@@ -9,7 +9,7 @@ description = "The skill OS that stands next to the robot."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
-authors = [{ name = "BruhOS", email = "bruhos2027@gmail.com" }]
+authors = [{ name = "BruhOS", email = "admin@bruhos.ai" }]
 keywords = ["robotics", "embodied-ai", "tonypi", "lerobot", "vlm", "skills"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
