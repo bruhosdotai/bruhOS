@@ -67,6 +67,8 @@ def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall
     args: dict[str, Any] = {}
     if inner:
         for part in (p.strip() for p in inner.split(",")):
+            if not part:
+                raise ValueError(f"empty argument in skill call: {text!r}")
             if "=" in part:
                 k, v = (s.strip() for s in part.split("=", 1))
             else:
