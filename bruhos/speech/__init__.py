@@ -18,7 +18,8 @@ class SpeechConfig:
     allow_non_english: bool = False
 
     def __post_init__(self) -> None:
-        if self.language != "en" and not self.allow_non_english:
+        primary = self.language.lower().replace("_", "-").split("-")[0]
+        if primary != "en" and not self.allow_non_english:
             raise ValueError(f"bruhOS is English-first; language={self.language!r} needs allow_non_english=True")
 
 
