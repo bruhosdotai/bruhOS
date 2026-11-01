@@ -46,6 +46,12 @@ class RulesPlanner(Planner):
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
+                # "move" is also a navigation verb (walk/go/come/approach/move), but the
+                # walk branch never sees a bare "move to the box" because this branch
+                # fires first: with no object named, no it/that/this deixis and an empty
+                # hand, plan the walk itself instead of delivering an unnamed block.
+                if obj in (None, "line") and not has(" it ", " that ", " this ") and has("move"):
+                    return [_c("walk_toward", target="box")]
                 obj = obj if obj not in (None, "line") else "block"
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
                     _c("walk_toward", target="box"), _c("release")]
