@@ -86,8 +86,11 @@ class LFM3OmniPlanner(QwenVLPlanner):
         super().__init__(base_url=base_url, model=model, timeout=timeout, **kw)
         self.constrain = constrain
 
-    def user_content(self, instruction: str, obs: Observation) -> Any:
+    def user_content(self, instruction: str, obs: Observation,
+                     history: list[dict[str, Any]] | None = None) -> Any:
         text = _ask([(o.name, o.distance_m) for o in obs.objects], instruction, obs.holding)
+        if history:
+            text = f"Previous attempt failed. History: {json.dumps(history)}\n{text}"
         jpeg = self.frame_provider() if self.frame_provider else None
         if not jpeg:
             return text
