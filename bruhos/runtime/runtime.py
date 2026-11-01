@@ -108,19 +108,20 @@ class Runtime:
             before = self.body.observe()
             outcome = run_skill(self.ctx, call)
             after = self.body.observe()
+            if outcome.status is Status.FALLEN and not after.imu.fallen:
+                # The skill saw a fall the body no longer reports, so nothing was recovered and
+                # the retry has no budget behind it: a body that spikes on every primitive would
+                # re-run the same skill forever. Take the bounded failure path instead, and record
+                # the decision rather than the sample it overrode.
+                outcome = Outcome(Status.FAILED,
+                                  f"{call.skill} reported a fall the body does not confirm")
             self._record(ep, "stop" if call.skill == "stop" else "skill", call, outcome, before, after)
 
             if outcome.status is Status.FALLEN:
                 ep.falls += 1
-                if after.imu.fallen:
-                    if self._recover(ep, after) is None:
-                        return
-                    continue                 # resume the interrupted skill
-                # The skill saw a fall the body no longer reports, so nothing was recovered and
-                # the retry has no budget behind it: a body that spikes on every primitive would
-                # re-run the same skill forever. Take the bounded failure path instead.
-                outcome = Outcome(Status.FAILED,
-                                  f"{call.skill} reported a fall the body does not confirm")
+                if self._recover(ep, after) is None:
+                    return
+                continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
                 ep.success = call.skill == "stop" and plan[-1].skill == "stop"

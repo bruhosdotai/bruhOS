@@ -88,7 +88,8 @@ def test_unconfirmed_fall_ends_the_episode_instead_of_retrying_forever():
     assert body.acts == ["wave", "wave"]          # one run, one bounded replan, then stop
     assert not ep.success
     assert ep.end_reason == "wave failed: wave reported a fall the body does not confirm"
-    assert ep.falls == 2
+    assert ep.falls == 0                          # the body never fell, the IMU spiked
+    assert [s.outcome["status"] for s in ep.steps] == ["failed", "failed"]
     assert ep.trace_root and all(s.hash for s in ep.steps)
 
 
