@@ -9,6 +9,11 @@ not be executed: no plan, the same answer the planner gives for "Do a
 backflip." (the eval scores that as ``no_plan``). The markers are the three
 negation spellings of this grammar: "do not" / "not", "never", and "don't"
 (which the planner's normalisation turns into the tokens "don t").
+
+One exception: a stop commanded alongside the negated action ("Don't
+move, stop.") still plans ``stop`` — halting is the safe action, not part
+of what the negation forbids. A stop the negation names directly ("Don't
+stop.") is itself forbidden and still gets no plan.
 """
 
 import pytest
@@ -31,6 +36,8 @@ def plan(text, holding=None):
     "Don't put the red block in the box.",
     "Don't stop.",
     "Do not stop.",
+    "Never stop.",
+    "Do not move, do not stop.",
     "Never follow the line.",
     "Don't wave.",
     "Do not drop the red block.",
@@ -38,6 +45,16 @@ def plan(text, holding=None):
 ])
 def test_no_plan_for_a_negated_instruction(text):
     assert plan(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "Don't move, stop.",
+    "Don't walk, freeze.",
+    "Stop, don't move.",
+    "Do not kick the ball, halt.",
+])
+def test_unnegated_stop_alongside_a_negated_action_still_stops(text):
+    assert plan(text) == [SkillCall("stop", {})]
 
 
 def test_negated_kick_does_not_kick_end_to_end():

@@ -40,7 +40,16 @@ class RulesPlanner(Planner):
         # so the only faithful answer is no plan — the same answer the
         # planner gives for a request it cannot perform. ("don't" reaches
         # here as the tokens "don t": the apostrophe is normalised away.)
+        # One exception: a stop commanded alongside the negated action
+        # ("Don't move, stop.") still stops — halting is the safe action,
+        # not part of what the negation forbids. A stop word directly after
+        # the marker is the negated target itself ("Don't stop.") and
+        # stays refused.
         if has("not", "never", "don t"):
+            if has("stop", "halt", "freeze") and not re.search(
+                r"\b(not|never|don t)\s+(stop|halt|freeze)\b", s
+            ):
+                return [_c("stop")]
             return []
 
         if has("stop", "halt", "freeze"):
