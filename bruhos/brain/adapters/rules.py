@@ -33,7 +33,7 @@ class RulesPlanner(Planner):
 
     def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
         s = " " + re.sub(r"[^a-z ]+", " ", instruction.lower()) + " "
-        has = lambda *ws: any(f" {w} " in s or (" " in w and w in s) for w in ws)
+        has = lambda *ws: any(re.search(r"\b" + re.escape(w.strip()) + r"\b", s) for w in ws)
 
         if has("stop", "halt", "freeze"):
             return [_c("stop")]
