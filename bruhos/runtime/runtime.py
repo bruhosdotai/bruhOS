@@ -117,7 +117,7 @@ class Runtime:
                 continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
-                ep.success = call.skill == "stop" and plan[-1].skill == "stop"
+                ep.success = call.skill == "stop" and i == len(plan) - 1
                 return
             if outcome.status is Status.FAILED:
                 if replans >= self.cfg.max_replans:
