@@ -47,3 +47,32 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_trace_roundtrip_with_unicode(tmp_path):
+    from bruhos.schemas import Episode, Step
+    from bruhos.trace.hashing import seal
+
+    ep = Episode(
+        episode_id="unicode-test-1",
+        instruction="Robot \U0001f916 wave \u62db\u624b",
+        brain="rules",
+        body="sim",
+        started_at=1.0,
+        steps=[
+            Step(
+                index=0,
+                t=1.0,
+                call={"skill": "wave", "args": {}},
+                outcome={"status": "ok", "detail": "waved \u270c\ufe0f (\u62db\u624b)"},
+                obs_before={"t": 1.0, "frame": 1, "objects": [], "imu": {}, "line": {}},
+            )
+        ],
+    )
+    seal(ep)
+    d = LocalSink(tmp_path).emit(ep)["path"]
+    loaded = load_episode(d)
+    assert loaded.instruction == "Robot \U0001f916 wave \u62db\u624b"
+    assert loaded.steps[0].outcome["detail"] == "waved \u270c\ufe0f (\u62db\u624b)"
+    assert verify_episode(loaded)
+
