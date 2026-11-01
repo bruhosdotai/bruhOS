@@ -30,12 +30,19 @@ LEROBOT_FEATURES: dict[str, dict[str, Any]] = {
 }
 
 
-def _state(obs: dict[str, Any]) -> list[float]:
-    imu, line = obs.get("imu", {}), obs.get("line", {})
+def _state(obs: dict[str, Any] | None) -> list[float]:
+    obs = obs or {}
+    imu = obs.get("imu") or {}
+    line = obs.get("line") or {}
+    objects = obs.get("objects") or []
+    roll = imu.get("roll_deg")
+    pitch = imu.get("pitch_deg")
+    offset = line.get("offset")
     return [
-        float(imu.get("roll_deg", 0.0)), float(imu.get("pitch_deg", 0.0)), float(bool(imu.get("fallen"))),
-        float(obs.get("holding") is not None), float(len(obs.get("objects", []))),
-        float(bool(line.get("visible"))), float(line.get("offset", 0.0)),
+        float(roll if roll is not None else 0.0), float(pitch if pitch is not None else 0.0),
+        float(bool(imu.get("fallen"))),
+        float(obs.get("holding") is not None), float(len(objects)),
+        float(bool(line.get("visible"))), float(offset if offset is not None else 0.0),
     ]
 
 
@@ -45,9 +52,11 @@ def to_lerobot_frames(ep: Episode, episode_index: int = 0, start_index: int = 0)
     frames = []
     for i, s in enumerate(steps):
         last = i == len(steps) - 1
+        call = s.call or {}
+        outcome = s.outcome or {}
         frames.append({
             "observation.state": _state(s.obs_before),
-            "action": [float(SKILL_INDEX.get(s.call["skill"], -1)), float(s.outcome["status"] == "ok")],
+            "action": [float(SKILL_INDEX.get(call.get("skill"), -1)), float(outcome.get("status") == "ok")],
             "timestamp": round(s.t - t0, 4),
             "frame_index": i,
             "episode_index": episode_index,
