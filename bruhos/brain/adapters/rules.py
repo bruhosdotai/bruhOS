@@ -41,7 +41,7 @@ class RulesPlanner(Planner):
             return [_c("stand_up")]
 
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
-        if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
+        if has("put", "place", "drop", "release", "let go", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
