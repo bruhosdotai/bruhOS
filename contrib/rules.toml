@@ -2,7 +2,6 @@
 # Human-readable version: CONTRIBUTING.md. Changes to this file go through a public PR.
 
 [pool]
-supply_pct = 5.0          # share of total token supply reserved for contributors
 min_points = 20.0         # below this, a contributor is not eligible
 max_share = 0.15          # one contributor gets at most 15% of the pool; applies only with
                           # 7+ eligible, otherwise pure proportional, so the whole pool is always distributed

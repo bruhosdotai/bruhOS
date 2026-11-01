@@ -118,11 +118,10 @@ def test_pool_always_fully_distributed_with_few_contributors():
     assert seven["a"] == pytest.approx(0.15) and sum(seven.values()) == pytest.approx(1.0)
 
 
-def test_supply_pct():
+def test_pool_share():
     prs = [pr(i, f"u{i}", labels=["core"]) for i in range(10)]
     row = run(prs)["contributors"][0]
     assert row["pool_share"] == pytest.approx(0.1)
-    assert row["supply_pct"] == pytest.approx(0.5)
 
 
 def test_deterministic():
