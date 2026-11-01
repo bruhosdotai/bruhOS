@@ -52,7 +52,7 @@ def parse_plan(raw: Any) -> list[SkillCall]:
         text = _FENCE.sub("", raw.decode() if isinstance(raw, bytes) else raw).strip()
         raw = json.loads(text)
     guard_no_joint_actions(raw)
-    items = raw.get("plan") if isinstance(raw, dict) else raw
+    items = raw.get("plan", raw.get("actions")) if isinstance(raw, dict) else raw
     if not isinstance(items, list):
         raise ValueError(f"plan must be a list, got {type(items).__name__}")
     pos = positional_args()
