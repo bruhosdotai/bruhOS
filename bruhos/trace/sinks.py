@@ -103,7 +103,11 @@ class SinkDispatcher:
         self._q.put(ep)
 
     def _run(self) -> None:
-        while (ep := self._q.get()) is not None:
+        while True:
+            ep = self._q.get()
+            if ep is None:
+                self._q.task_done()
+                return
             for s in self.sinks:
                 try:
                     self.receipts.append((ep.episode_id, s.name, s.emit(ep)))
