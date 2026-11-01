@@ -72,6 +72,11 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
             return Outcome(Status.OK, f"facing {d.name}", {"bearing_deg": d.bearing_deg})
         ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         obs = ctx.body.observe()
+    if ctx.should_stop():
+        return Outcome(Status.STOPPED, "stop requested")
+    d = obs.find(target)
+    if not obs.imu.fallen and d is not None and abs(d.bearing_deg) <= AIM_DEG:
+        return Outcome(Status.OK, f"facing {d.name}", {"bearing_deg": d.bearing_deg})
     return Outcome(Status.FAILED, "aim timeout")
 
 
@@ -101,6 +106,12 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
         else:
             ctx.body.act("forward")
         obs = ctx.body.observe()
+    if ctx.should_stop():
+        return Outcome(Status.STOPPED, "stop requested")
+    d = obs.find(target)
+    if (not obs.imu.fallen and d is not None and d.distance_m is not None
+            and d.distance_m <= stop_at and abs(d.bearing_deg) <= WALK_AIM_DEG):
+        return Outcome(Status.OK, f"reached {d.name}", {"distance_m": d.distance_m})
     return Outcome(Status.FAILED, "walk timeout")
 
 
