@@ -28,7 +28,7 @@ def _scan(ctx: SkillContext, target: str) -> tuple[Outcome | None, Observation]:
             return None, obs
         if ctx.should_stop():
             return Outcome(Status.STOPPED, "stop requested"), obs
-        ctx.body.act("turn_left")
+        ctx.act("turn_left")
         obs = ctx.body.observe()
     if (f := _fallen(obs)):
         return f, obs
@@ -70,7 +70,7 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
             return Outcome(Status.FAILED, f"lost {target}")
         if abs(d.bearing_deg) <= AIM_DEG:
             return Outcome(Status.OK, f"facing {d.name}", {"bearing_deg": d.bearing_deg})
-        ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
+        ctx.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         obs = ctx.body.observe()
     return Outcome(Status.FAILED, "aim timeout")
 
@@ -97,9 +97,9 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
         if d.distance_m is not None and d.distance_m <= stop_at:
             return Outcome(Status.OK, f"reached {d.name}", {"distance_m": d.distance_m})
         if abs(d.bearing_deg) > WALK_AIM_DEG:
-            ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
+            ctx.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         else:
-            ctx.body.act("forward")
+            ctx.act("forward")
         obs = ctx.body.observe()
     return Outcome(Status.FAILED, "walk timeout")
 
@@ -119,11 +119,11 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
         if ctx.should_stop():
             return Outcome(Status.STOPPED, "stop requested")
         if obs.line.offset > LINE_DEADBAND:
-            ctx.body.act("turn_right")
+            ctx.act("turn_right")
         elif obs.line.offset < -LINE_DEADBAND:
-            ctx.body.act("turn_left")
+            ctx.act("turn_left")
         else:
-            ctx.body.act("forward")
+            ctx.act("forward")
             done += 1
         obs = ctx.body.observe()
         if (f := _fallen(obs)):
@@ -137,7 +137,7 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
 
 @skill(SkillSpec("grab", "Close the hand on the object in reach."))
 def grab(ctx: SkillContext, args: dict) -> Outcome:
-    if not ctx.body.act("grab"):
+    if not ctx.act("grab"):
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.FAILED, "nothing in reach" if not obs.holding else "hand full")
     obs = ctx.body.observe()
@@ -147,7 +147,7 @@ def grab(ctx: SkillContext, args: dict) -> Outcome:
 @skill(SkillSpec("release", "Open the hand."))
 def release(ctx: SkillContext, args: dict) -> Outcome:
     before = ctx.body.observe().holding
-    if not ctx.body.act("release"):
+    if not ctx.act("release"):
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.FAILED, "hand empty")
     return Outcome(Status.OK, f"released {before}", {"released": before})
@@ -156,14 +156,14 @@ def release(ctx: SkillContext, args: dict) -> Outcome:
 @skill(SkillSpec("kick", "Kick with the given foot.",
                  {"foot": Arg(str, default="right", choices=("left", "right"))}, positional="foot"))
 def kick(ctx: SkillContext, args: dict) -> Outcome:
-    ctx.body.act(f"kick_{args['foot']}")
+    ctx.act(f"kick_{args['foot']}")
     obs = ctx.body.observe()
     return _fallen(obs) or Outcome(Status.OK, f"kicked {args['foot']}")
 
 
 @skill(SkillSpec("wave", "Wave hello."))
 def wave(ctx: SkillContext, args: dict) -> Outcome:
-    ctx.body.act("wave")
+    ctx.act("wave")
     obs = ctx.body.observe()
     return _fallen(obs) or Outcome(Status.OK, "waved")
 
@@ -176,7 +176,7 @@ def stand_up(ctx: SkillContext, args: dict) -> Outcome:
     front = obs.imu.fell_forward
     order = ["stand_up_front", "stand_up_back"] if front is not False else ["stand_up_back", "stand_up_front"]
     for prim in order:
-        ctx.body.act(prim)
+        ctx.act(prim)
         obs = ctx.body.observe()
         if not obs.imu.fallen:
             return Outcome(Status.OK, f"recovered via {prim}", {"via": prim})
