@@ -4,7 +4,11 @@ import json
 import threading
 from unittest.mock import patch
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import build_opener, ProxyHandler
+
+# The suite talks to loopback servers it owns, so it must not inherit an ambient OS/env proxy.
+_direct = build_opener(ProxyHandler({}))
+urlopen = _direct.open
 
 import pytest
 

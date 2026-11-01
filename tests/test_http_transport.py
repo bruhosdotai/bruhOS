@@ -113,3 +113,25 @@ def test_planner_with_default_transport_does_not_leak(servers):
     with pytest.raises(urllib.error.HTTPError):
         planner.plan("Wave.", SimBody().observe(), [])
     assert other.requests == []
+
+
+def test_brain_transport_installs_no_ambient_proxy():
+    """A brain call carries ``Authorization`` and the prompt, so no ambient proxy may sit in its path.
+
+    ``urllib.request.build_opener`` installs a ``ProxyHandler`` that snapshots ``getproxies()`` —
+    on macOS that is the *system* proxy, not just ``HTTP_PROXY`` — so a loopback inference server is
+    reached through whatever proxy the host happens to run: the key and the prompt transit a third
+    party, and a proxy outage takes the robot down. ``Transport`` is injectable for anyone who does
+    want a proxy, so the default must not use one.
+    """
+    from bruhos.brain.adapters.openai import _opener
+
+    assert "ProxyHandler" not in {type(h).__name__ for h in _opener.handlers}
+
+
+def test_trace_sink_transport_installs_no_ambient_proxy():
+    """``IpfsSink`` POSTs whole episodes to the local Kubo API; same boundary, same rule."""
+    from bruhos.trace import sinks
+
+    assert "ProxyHandler" not in {type(h).__name__ for h in sinks._opener.handlers}
+

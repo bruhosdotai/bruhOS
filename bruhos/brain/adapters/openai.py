@@ -35,7 +35,9 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
                                      "redirects; set base_url to the final endpoint)", headers, fp)
 
 
-_opener = urllib.request.build_opener(_NoRedirect)
+# No ProxyHandler: an ambient env/system proxy would carry the Authorization header and the prompt.
+# Callers that do want a proxy inject a Transport.
+_opener = urllib.request.build_opener(_NoRedirect, urllib.request.ProxyHandler({}))
 
 
 MAX_RESPONSE_BYTES = 4 << 20
