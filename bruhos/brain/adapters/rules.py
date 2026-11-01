@@ -42,6 +42,15 @@ class RulesPlanner(Planner):
 
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
+            # A quantifier (all/every/both/each) scopes the instruction over
+            # more than one object, and the planner has no loop primitive:
+            # planning a single delivery would report success while the
+            # instruction's scope is unmet (e.g. "Put all blocks in the
+            # box." completing with one block in). No plan is the honest
+            # outcome. Matching is whole-word via has(), so "small" or
+            # "ball" never trip the gate.
+            if has("all", "every", "both", "each"):
+                return []
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
