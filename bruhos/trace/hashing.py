@@ -33,14 +33,31 @@ def merkle_root(leaves: list[str]) -> str:
     return level[0].hex()
 
 
+def _seed(ep: Episode) -> str:
+    """Digest of the episode header (everything but the trace_root itself).
+
+    Commits the outcome of the run — success, end_reason, falls, recoveries, plan,
+    brain/body identities — alongside the steps, so an edited header no longer verifies.
+    """
+    header = ep.header()
+    header.pop("trace_root", None)
+    return sha256_hex(canonical(header))
+
+
 def seal(ep: Episode) -> str:
-    """Fill step hashes and the episode trace_root. Returns trace_root."""
-    prev = sha256_hex(canonical({"episode_id": ep.episode_id, "instruction": ep.instruction,
-                                 "skillpack_hash": ep.skillpack_hash}))
+    """Fill step hashes and the episode trace_root. Returns trace_root.
+
+    The step chain is seeded with the header digest and trace_root combines that
+    digest with the Merkle root of the step hashes, so neither the steps nor the
+    outcome header can be edited without failing verify_episode.
+    """
+    seed = _seed(ep)
+    prev = seed
     for s in ep.steps:
         s.hash = step_hash(s, prev)
         prev = s.hash
-    ep.trace_root = merkle_root([s.hash for s in ep.steps])
+    merkle = merkle_root([s.hash for s in ep.steps])
+    ep.trace_root = sha256_hex(bytes.fromhex(seed) + bytes.fromhex(merkle))
     return ep.trace_root
 
 
