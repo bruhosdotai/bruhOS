@@ -100,10 +100,37 @@ def test_brain_failure_halts_body_and_leaves_trace():
             raise RuntimeError("cloud timeout")
 
     body = SimBody()
-    ep = Runtime(body, BoomPlanner()).run("Wave hello.")
+    rt = Runtime(body, BoomPlanner())
+    ep = rt.run("Wave hello.")
     assert not ep.success
     assert ep.end_reason == "brain error: cloud timeout"
     assert ep.steps and ep.steps[0].kind == "rejected"
+    assert body._halted.is_set()
+    assert rt._stop.is_set()
+
+
+def test_brain_failure_latches_stop_for_next_episode():
+    """After a brain failure, a later run() must stop at once, not burn its budget."""
+
+    class FailOncePlanner(Planner):
+        name = "fail-once"
+
+        def __init__(self):
+            self.calls = 0
+
+        def plan(self, instruction, obs, catalog):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("cloud timeout")
+            return [SkillCall("detect", {"target": "moon"})]
+
+    body = SimBody()
+    rt = Runtime(body, FailOncePlanner())
+    ep1 = rt.run("Find the moon.")
+    assert ep1.end_reason == "brain error: cloud timeout"
+    ep2 = rt.run("Find the moon.")
+    assert ep2.end_reason == "stopped"
+    assert not any(s.kind == "skill" for s in ep2.steps)
     assert body._halted.is_set()
 
 
