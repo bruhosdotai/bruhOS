@@ -61,6 +61,8 @@ _IMPL: dict[str, SkillFn] = {}
 
 def skill(spec: SkillSpec):
     def deco(fn: SkillFn) -> SkillFn:
+        if spec.name in SKILLS:
+            raise SkillError(f"{spec.name!r} is already registered; refusing to overwrite the whitelist")
         SKILLS[spec.name] = spec
         _IMPL[spec.name] = fn
         return fn
