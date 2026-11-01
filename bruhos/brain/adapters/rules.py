@@ -57,8 +57,6 @@ class RulesPlanner(Planner):
             return [_c("kick", foot=foot)]
         if has("follow"):
             return [_c("follow_line")]
-        if has("wave", "hello", "hi", "greet", "say hi"):
-            return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
             return [_c("release")]
 
@@ -73,4 +71,10 @@ class RulesPlanner(Planner):
             return [_c("detect", target=obj)]
         if has("what do you see", "look around", "what s around", "scan"):
             return [_c("detect")]
+        # A greeting is not a command: it only waves when nothing else in
+        # the instruction is actionable. Placed here, a greeting can no
+        # longer hijack a concrete command into a wave that certifies
+        # success without doing it.
+        if has("wave", "hello", "hi", "greet", "say hi"):
+            return [_c("wave")]
         return []
