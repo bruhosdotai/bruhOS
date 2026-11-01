@@ -135,13 +135,29 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
     return Outcome(Status.OK, f"followed {done} steps", {"steps": done})
 
 
-@skill(SkillSpec("grab", "Close the hand on the object in reach."))
+def _name_matches(target: str, name: str) -> bool:
+    """Same token rule as Detection.matches: every target token must appear in the held name."""
+    tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
+    have = set(name.lower().replace("-", "_").split("_"))
+    return bool(tokens) and tokens <= have
+
+
+@skill(SkillSpec("grab", "Close the hand on the object in reach; with `target`, fail unless that object is held.",
+                 {"target": Arg(str, doc="e.g. red_block")}, positional="target"))
 def grab(ctx: SkillContext, args: dict) -> Outcome:
     if not ctx.body.act("grab"):
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.FAILED, "nothing in reach" if not obs.holding else "hand full")
     obs = ctx.body.observe()
-    return _fallen(obs) or Outcome(Status.OK, f"holding {obs.holding}", {"holding": obs.holding})
+    if (f := _fallen(obs)):
+        return f
+    target = args.get("target")
+    if target and obs.holding and not _name_matches(target, obs.holding):
+        # The hand closed on something else: fail honestly instead of
+        # certifying the wrong object. The wrong object stays held (the
+        # truthful state); releasing it here could drop it into the box.
+        return Outcome(Status.FAILED, f"grabbed {obs.holding}, expected {target}")
+    return Outcome(Status.OK, f"holding {obs.holding}", {"holding": obs.holding})
 
 
 @skill(SkillSpec("release", "Open the hand."))
