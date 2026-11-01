@@ -64,8 +64,8 @@ class Observation:
     def from_dict(cls, d: dict[str, Any]) -> "Observation":
         return cls(
             t=d["t"], frame=d["frame"],
-            objects=[Detection(**{k: v for k, v in o.items() if k != "name"}) for o in d.get("objects", [])],
-            imu=Imu(**d.get("imu", {})),
-            line=LineReading(**d.get("line", {})),
+            objects=[Detection(**{k: v for k, v in o.items() if k != "name"}) for o in (d.get("objects") or [])],
+            imu=Imu(**(d.get("imu") or {})),
+            line=LineReading(**(d.get("line") or {})),
             holding=d.get("holding"),
         )
