@@ -179,10 +179,10 @@ class ElizaBridgeBody(Body):
             return False
         end = time.monotonic() + self.durations.get(group, 1.0)
         while time.monotonic() < end:
-            if self._halted.is_set() or self._deadman.is_set():
+            if self._halted.is_set() or self._deadman.is_set() or self._closed.is_set():
                 return False
             time.sleep(0.05)
-        return True
+        return not self._closed.is_set()
 
     def _walk(self, primitive: str) -> bool:
         w = self.walk
