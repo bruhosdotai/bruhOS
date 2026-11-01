@@ -27,6 +27,20 @@ def _c(skill: str, **args: Any) -> SkillCall:
     return SkillCall(skill, args)
 
 
+def _holding_matches(holding: str | None, target: str | None) -> bool:
+    """True when the held object satisfies a (possibly partial) target name.
+
+    Same token rule as ``Detection.matches``: every token of the target must
+    appear in the held name, so "red" and "red_block" both match a held
+    "red_block", while "blue" does not.
+    """
+    if not holding or not target:
+        return False
+    tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
+    have = set(holding.lower().replace("-", "_").split("_"))
+    return bool(tokens) and tokens <= have
+
+
 class RulesPlanner(Planner):
     name = "rules"
     version = "rules-0.1"
@@ -43,6 +57,11 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            if _holding_matches(obs.holding, obj):
+                # Already holding the named object: delivering it needs no
+                # detect/walk/grab, and detect could never find a held object
+                # (held objects are excluded from observations).
+                return [_c("walk_toward", target="box"), _c("release")]
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
