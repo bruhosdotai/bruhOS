@@ -268,8 +268,12 @@ tests/
 
 ## Team
 
-bruhOS was founded by Baoger ([@baogerbao](https://x.com/baogerbao) on X,
-[@baogermakesbao](https://github.com/baogermakesbao) on GitHub).
+<p align="center">
+  <a href="https://x.com/baogerbao"><img src="docs/assets/team/baoger.png" width="190" alt="Baoger, AI Brain Adapter & Perception Engineer, on X" /></a>
+  <a href="https://x.com/spaceodili"><img src="docs/assets/team/odi.png" width="190" alt="Odi, Robotics & Hardware Integration Engineer, on X" /></a>
+  <a href="https://x.com/SYMBiEX"><img src="docs/assets/team/symbiex.png" width="190" alt="SYMBiEX, Runtime & Systems Engineer, on X" /></a>
+  <a href="https://x.com/friesmakesfries"><img src="docs/assets/team/fries.png" width="190" alt="Fries, Operations & Growth Lead, on X" /></a>
+</p>
 
 ## Contributing
 
