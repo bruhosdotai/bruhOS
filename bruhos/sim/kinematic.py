@@ -7,7 +7,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 
-from bruhos.body.base import Body
+from bruhos.body.base import PRIMITIVES, Body
 from bruhos.schemas import Detection, Imu, LineReading, Observation
 
 FORWARD_M = 0.05
@@ -101,6 +101,8 @@ class SimBody(Body):
                            holding=w.holding.name if w.holding else None)
 
     def act(self, primitive: str) -> bool:
+        if primitive not in PRIMITIVES:
+            return False
         w = self.world
         self.t += STEP_S
         if self._halted.is_set():
