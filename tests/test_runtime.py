@@ -90,6 +90,43 @@ def test_failed_sink_does_not_crash():
     assert ep.success and d.receipts[0][2].startswith("error")
 
 
+def test_brain_failure_halts_body_and_leaves_trace():
+    """A cloud brain that dies must not leave a traceless episode or a live body."""
+
+    class BoomPlanner(Planner):
+        name = "boom"
+
+        def plan(self, instruction, obs, catalog):
+            raise RuntimeError("cloud timeout")
+
+    body = SimBody()
+    ep = Runtime(body, BoomPlanner()).run("Wave hello.")
+    assert not ep.success
+    assert ep.end_reason == "brain error: cloud timeout"
+    assert ep.steps and ep.steps[0].kind == "rejected"
+    assert body._halted.is_set()
+
+
+def test_brain_failure_on_replan_halts_body():
+    """Same guarantee when the brain dies on replan after a skill already failed."""
+
+    class FailThenBoom(Planner):
+        name = "fail-then-boom"
+
+        def plan(self, instruction, obs, catalog):
+            return [SkillCall("detect", {"target": "moon"})]
+
+        def replan(self, instruction, obs, catalog, history):
+            raise RuntimeError("server gone")
+
+    body = SimBody()
+    ep = Runtime(body, FailThenBoom()).run("Find the moon.")
+    assert not ep.success
+    assert ep.end_reason == "brain error: server gone"
+    assert any(s.kind == "rejected" for s in ep.steps)
+    assert body._halted.is_set()
+
+
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
