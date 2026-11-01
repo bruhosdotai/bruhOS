@@ -268,8 +268,8 @@ tests/
 
 ## Contributing
 
-PRs welcome. 5% of the bruhOS token supply is shared among contributors by GitHub contribution
-points — rules in [CONTRIBUTING.md](CONTRIBUTING.md), live board at
+PRs welcome. Contributions earn GitHub contribution points — rules in
+[CONTRIBUTING.md](CONTRIBUTING.md), live board at
 [bruhos.ai/contributors](https://bruhos.ai/contributors/).
 
 ## License
