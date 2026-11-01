@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from bruhos.schemas import Observation, Outcome, Status
 
 from .registry import Arg, SkillContext, SkillSpec, skill
@@ -18,9 +20,12 @@ def _fallen(obs: Observation) -> Outcome | None:
 
 
 def _scan(ctx: SkillContext, target: str) -> tuple[Outcome | None, Observation]:
-    """Turn in place until ``target`` is in view. One full revolution at most."""
+    """Turn in place until ``target`` is in view. Covers a full revolution."""
     obs = ctx.body.observe()
-    turns = int(360 / ctx.body.turn_step_deg)
+    # Round up: truncating would stop short of a full revolution whenever the step
+    # size does not divide 360 (e.g. 3 turns of 100 degrees cover only 300 degrees),
+    # and the scan would report a target missing that one more step would have found.
+    turns = math.ceil(360 / ctx.body.turn_step_deg)
     for _ in range(turns):
         if (f := _fallen(obs)):
             return f, obs
