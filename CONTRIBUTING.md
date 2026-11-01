@@ -29,9 +29,8 @@ your share = your points ÷ total points of all eligible contributors
   list is published, there is a 7-day window to raise objections, and the allocation unlocks in
   full at TGE.
 
-Live leaderboard: **https://bruhos.ai/contributors/** — updated every 30 minutes by
-[`contrib/score.py`](contrib/score.py) with the rules in [`contrib/rules.toml`](contrib/rules.toml).
-Anyone can re-run it and get the same numbers.
+Points are computed by [`contrib/score.py`](contrib/score.py) with the rules in
+[`contrib/rules.toml`](contrib/rules.toml). Anyone can re-run it and get the same numbers.
 
 ## How points are earned
 

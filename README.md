@@ -268,9 +268,8 @@ tests/
 
 ## Contributing
 
-PRs welcome. Contributions earn GitHub contribution points — rules in
-[CONTRIBUTING.md](CONTRIBUTING.md), live board at
-[bruhos.ai/contributors](https://bruhos.ai/contributors/).
+PRs welcome, including through [Slop](https://slop.cash/projects/bruhos). Rules in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
