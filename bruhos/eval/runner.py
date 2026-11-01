@@ -29,9 +29,9 @@ def load_prompts(path: str | Path = PROMPTS) -> list[dict[str, Any]]:
 def check(expect: str, ep: Episode, world: World) -> bool:
     kind, _, arg = expect.partition(":")
     if kind == "event":
-        return arg in world.events
+        return ep.success and arg in world.events
     if kind == "holding":
-        return world.holding is not None and world.holding.name == arg
+        return ep.success and world.holding is not None and world.holding.name == arg
     if kind in {"near", "facing"}:
         o = world.get(arg)
         if o is None:
