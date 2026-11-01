@@ -114,6 +114,10 @@ class Runtime:
                 ep.falls += 1
                 if self._recover(ep, after) is None:
                     return
+                if call.skill == "follow_line":
+                    # Keep completed gait cycles out of the resumed request.
+                    remaining = call.args["steps"] - outcome.data.get("steps", 0)
+                    plan[i] = SkillCall(call.skill, {**call.args, "steps": remaining})
                 continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
