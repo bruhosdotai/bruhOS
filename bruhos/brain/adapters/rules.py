@@ -56,6 +56,12 @@ class RulesPlanner(Planner):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
         if has("follow"):
+            # Following a line cannot verify arrival at a destination: if
+            # the instruction also names a box destination, following
+            # anyway would silently drop the destination and report
+            # success, so it gets no plan instead.
+            if into_box:
+                return []
             return [_c("follow_line")]
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
