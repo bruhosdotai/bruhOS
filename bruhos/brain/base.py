@@ -53,6 +53,12 @@ def parse_plan(raw: Any) -> list[SkillCall]:
         raw = json.loads(text)
     guard_no_joint_actions(raw)
     items = raw.get("plan") if isinstance(raw, dict) else raw
+    if not isinstance(items, list) and isinstance(raw, dict) and isinstance(raw.get("skill"), str):
+        # A bare single call object passed the guard (it is not a joint chunk) but
+        # is not a container either; treat it as a one-call plan rather than
+        # rejecting a valid skill. Distinct from the "actions" container, which
+        # open PR #96 covers.
+        items = [raw]
     if not isinstance(items, list):
         raise ValueError(f"plan must be a list, got {type(items).__name__}")
     pos = positional_args()
