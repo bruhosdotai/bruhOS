@@ -94,7 +94,7 @@ class EvalReport:
 def run_eval(make_brain: Callable[[], Planner], fall_prob: float = 0.0, seed: int = 0,
              prompts: list[dict[str, Any]] | None = None) -> EvalReport:
     results = []
-    for i, p in enumerate(prompts or load_prompts()):
+    for i, p in enumerate(load_prompts() if prompts is None else prompts):
         overrides = dict(p.get("world", {}))
         world = World.tabletop(line_m=overrides.pop("line_m", 0.0))
         for k, v in overrides.items():
