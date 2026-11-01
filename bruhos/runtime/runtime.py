@@ -112,9 +112,15 @@ class Runtime:
 
             if outcome.status is Status.FALLEN:
                 ep.falls += 1
-                if self._recover(ep, after) is None:
-                    return
-                continue                     # resume the interrupted skill
+                if after.imu.fallen:
+                    if self._recover(ep, after) is None:
+                        return
+                    continue                 # resume the interrupted skill
+                # The skill saw a fall the body no longer reports, so nothing was recovered and
+                # the retry has no budget behind it: a body that spikes on every primitive would
+                # re-run the same skill forever. Take the bounded failure path instead.
+                outcome = Outcome(Status.FAILED,
+                                  f"{call.skill} reported a fall the body does not confirm")
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
                 ep.success = call.skill == "stop" and plan[-1].skill == "stop"
