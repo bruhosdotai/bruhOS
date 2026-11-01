@@ -23,14 +23,23 @@ def step_hash(step: Step, prev: str) -> str:
 
 
 def merkle_root(leaves: list[str]) -> str:
+    """Merkle root of the step hashes.
+
+    Odd nodes are promoted, never duplicated, and the leaf count is folded into
+    the root. Duplicating the trailing leaf made ``[a, b, c]`` and
+    ``[a, b, c, c]`` hash to the same root, so a ``trace_root`` did not commit
+    to a unique step list (the CVE-2012-2459 class of ambiguity).
+    """
     if not leaves:
-        return sha256_hex(b"")
+        return sha256_hex(b"\x00")
     level = [bytes.fromhex(h) for h in leaves]
     while len(level) > 1:
+        nxt = [hashlib.sha256(level[i] + level[i + 1]).digest()
+               for i in range(0, len(level) - 1, 2)]
         if len(level) % 2:
-            level.append(level[-1])
-        level = [hashlib.sha256(level[i] + level[i + 1]).digest() for i in range(0, len(level), 2)]
-    return level[0].hex()
+            nxt.append(level[-1])          # promote, never duplicate
+        level = nxt
+    return sha256_hex(b"\x01" + len(leaves).to_bytes(8, "big") + level[0])
 
 
 def seal(ep: Episode) -> str:
