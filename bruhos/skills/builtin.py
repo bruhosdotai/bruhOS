@@ -11,6 +11,16 @@ WALK_AIM_DEG = 12.0
 LINE_DEADBAND = 0.2
 
 
+def _aim_deg(ctx: SkillContext, deadband: float) -> float:
+    """Widest of the skill deadband and half the body's turn step.
+
+    Inside half a turn step, one more ``turn_*`` overshoots to the other side, so a body whose
+    calibrated ``turn_step_deg`` is wider than ``2 * deadband`` would oscillate until the step
+    budget runs out. Facing is then the best this body can do.
+    """
+    return max(deadband, ctx.body.turn_step_deg / 2)
+
+
 def _fallen(obs: Observation) -> Outcome | None:
     if obs.imu.fallen:
         return Outcome(Status.FALLEN, "fall detected", {"fell_forward": obs.imu.fell_forward})
@@ -60,6 +70,7 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
     err, obs = _scan(ctx, target)
     if err:
         return err
+    aim = _aim_deg(ctx, AIM_DEG)
     for _ in range(ctx.max_steps):
         if (f := _fallen(obs)):
             return f
@@ -68,7 +79,7 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
         d = obs.find(target)
         if d is None:
             return Outcome(Status.FAILED, f"lost {target}")
-        if abs(d.bearing_deg) <= AIM_DEG:
+        if abs(d.bearing_deg) <= aim:
             return Outcome(Status.OK, f"facing {d.name}", {"bearing_deg": d.bearing_deg})
         ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         obs = ctx.body.observe()
@@ -83,6 +94,7 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
     err, obs = _scan(ctx, target)
     if err:
         return err
+    aim = _aim_deg(ctx, WALK_AIM_DEG)
     for _ in range(ctx.max_steps):
         if (f := _fallen(obs)):
             return f
@@ -96,7 +108,7 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
             continue
         if d.distance_m is not None and d.distance_m <= stop_at:
             return Outcome(Status.OK, f"reached {d.name}", {"distance_m": d.distance_m})
-        if abs(d.bearing_deg) > WALK_AIM_DEG:
+        if abs(d.bearing_deg) > aim:
             ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         else:
             ctx.body.act("forward")
