@@ -72,7 +72,7 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
             return Outcome(Status.OK, f"facing {d.name}", {"bearing_deg": d.bearing_deg})
         ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
         obs = ctx.body.observe()
-    return Outcome(Status.FAILED, "aim timeout")
+    return _fallen(obs) or Outcome(Status.FAILED, "aim timeout")
 
 
 @skill(SkillSpec("walk_toward", "Walk until the target is within reach.",
@@ -101,7 +101,7 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
         else:
             ctx.body.act("forward")
         obs = ctx.body.observe()
-    return Outcome(Status.FAILED, "walk timeout")
+    return _fallen(obs) or Outcome(Status.FAILED, "walk timeout")
 
 
 @skill(SkillSpec("follow_line", "Follow a floor line for up to `steps` gait cycles.",
