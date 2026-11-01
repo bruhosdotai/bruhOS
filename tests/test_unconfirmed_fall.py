@@ -14,6 +14,13 @@ from bruhos.runtime import Runtime
 from bruhos.schemas import Imu, Observation, SkillCall
 
 
+# The fixed runtime runs the skill twice: one run, one bounded replan, then stop. Anything past a
+# handful means the unbounded retry came back. Without this cap the pre-fix behaviour is an
+# infinite loop, so a reverted fix would hang the test job until the runner's timeout instead of
+# failing it -- a regression has to fail loudly, not stall.
+MAX_ACTS = 20
+
+
 class SpikeBody(Body):
     """IMU reads 'fallen' for the sample right after a primitive, then reads upright again."""
 
@@ -29,6 +36,11 @@ class SpikeBody(Body):
 
     def act(self, primitive):
         self.acts.append(primitive)
+        if len(self.acts) > MAX_ACTS:
+            raise AssertionError(
+                f"the skill ran {len(self.acts)} times: the episode never ended, "
+                "so the unconfirmed-fall retry is unbounded again"
+            )
         self.spike = True
         return True
 
