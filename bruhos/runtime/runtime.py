@@ -56,6 +56,12 @@ class Runtime:
         )
         try:
             self._run(ep)
+        except Exception:
+            try:
+                self.stop()
+            except Exception:
+                log.exception("failed to halt after runtime error")
+            raise
         finally:
             ep.ended_at = time.time()
             seal(ep)
