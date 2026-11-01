@@ -40,7 +40,10 @@ class RulesPlanner(Planner):
         if has("stand up", "get up", "get back up"):
             return [_c("stand_up")]
 
-        into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
+        # One optional word may sit between the article and the destination
+        # noun ("the big box", "a box"): without it, an adjective destination
+        # fell through to the pickup/walk branches or to no plan at all.
+        into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(\w+\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
