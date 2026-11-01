@@ -21,6 +21,7 @@ class SpeechConfig:
         primary = self.language.lower().replace("_", "-").split("-")[0]
         if primary != "en" and not self.allow_non_english:
             raise ValueError(f"bruhOS is English-first; language={self.language!r} needs allow_non_english=True")
+        self.language = primary
 
 
 class ASR(ABC):

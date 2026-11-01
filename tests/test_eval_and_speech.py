@@ -49,5 +49,5 @@ def test_shipped_configs_are_english(cfg):
 @pytest.mark.parametrize("lang", ["en-US", "en-GB", "en_US", "en-au", "EN-CA"])
 def test_english_variants_accepted_without_allow_non_english(lang):
     cfg = SpeechConfig(language=lang)
-    assert cfg.language == lang
+    assert cfg.language == "en"
 
