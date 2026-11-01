@@ -60,6 +60,17 @@ class RulesPlanner(Planner):
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
+            # A named drop must match what the hand holds: releasing anyway
+            # would drop the wrong object and report success. With no named
+            # object ("drop it", "open your hand") or nothing held, the
+            # release stands as before (the latter fails honestly at runtime).
+            obj = _target(s)
+            if obj and obs.holding:
+                tokens = {t for t in obj.lower().replace("-", "_").split("_")
+                          if t and t not in {"the", "one"}}
+                have = set(obs.holding.lower().replace("-", "_").split("_"))
+                if tokens and not tokens <= have:
+                    return []
             return [_c("release")]
 
         obj = _target(s)
