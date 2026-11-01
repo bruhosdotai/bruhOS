@@ -58,13 +58,16 @@ _CALL = re.compile(r"^\s*([a-z_][a-z0-9_]*)\s*(?:\((.*)\))?\s*$")
 def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall:
     """Parse planner shorthand such as ``walk_toward(red_block)`` or ``kick(foot=left)``.
 
-    ``positional`` maps a skill name to the argument name used for a bare value.
+    ``positional`` maps a skill name to the argument name used for a bare value. A skill takes at
+    most one bare value; an extra value is an error rather than a silent overwrite, because a
+    mistyped plan must be rejected, not executed against the wrong target.
     """
     m = _CALL.match(text)
     if not m:
         raise ValueError(f"cannot parse skill call: {text!r}")
     name, inner = m.group(1), (m.group(2) or "").strip()
     args: dict[str, Any] = {}
+    positional_used = False
     if inner:
         for part in (p.strip() for p in inner.split(",")):
             if "=" in part:
@@ -73,7 +76,13 @@ def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall
                 k = (positional or {}).get(name)
                 if k is None:
                     raise ValueError(f"{name} takes no positional argument: {text!r}")
+                if positional_used:
+                    raise ValueError(f"{name} takes one positional argument ({k}); name the extra "
+                                     f"explicitly: {text!r}")
+                positional_used = True
                 v = part
+            if k in args:
+                raise ValueError(f"{name}: argument {k!r} given twice: {text!r}")
             args[k] = _coerce(v.strip("'\""))
     return SkillCall(name, args)
 
