@@ -101,8 +101,14 @@ def cmd_skills(a: argparse.Namespace) -> int:
 def cmd_verify(a: argparse.Namespace) -> int:
     from bruhos.trace import load_episode, verify_episode
 
-    ep = load_episode(a.path)
-    ok = verify_episode(ep)
+    try:
+        ep = load_episode(a.path)
+        ok = verify_episode(ep)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        # An unreadable trace is a failed verification, not a crash: the dashboard
+        # already treats these same files as corrupt traces it skips.
+        print(f"TAMPERED  {a.path} (unreadable trace: {e})")
+        return 2
     print(f"{'OK' if ok else 'TAMPERED'}  trace_root={ep.trace_root}  steps={len(ep.steps)}")
     return 0 if ok else 2
 
