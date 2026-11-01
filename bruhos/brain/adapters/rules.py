@@ -35,6 +35,14 @@ class RulesPlanner(Planner):
         s = " " + re.sub(r"[^a-z ]+", " ", instruction.lower()) + " "
         has = lambda *ws: any(f" {w} " in s or (" " in w and w in s) for w in ws)
 
+        # A negated instruction forbids the action it names. This grammar is
+        # single imperative commands and cannot represent "do X but not Y",
+        # so the only faithful answer is no plan — the same answer the
+        # planner gives for a request it cannot perform. ("don't" reaches
+        # here as the tokens "don t": the apostrophe is normalised away.)
+        if has("not", "never", "don t"):
+            return []
+
         if has("stop", "halt", "freeze"):
             return [_c("stop")]
         if has("stand up", "get up", "get back up"):
