@@ -56,6 +56,9 @@ class RulesPlanner(Planner):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
         if has("follow"):
+            m = re.search(r"(?<![\d,])(-?\d+)\s+steps?\b", instruction.lower())
+            if m:
+                return [_c("follow_line", steps=int(m.group(1)))]
             return [_c("follow_line")]
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
