@@ -131,6 +131,13 @@ class Runtime:
                     return
                 plan, i = new, 0
                 continue
+            if outcome.status is Status.OK and after.imu.fallen:
+                # The skill finished, but the body is on the floor: the fall came after the
+                # skill's own IMU read (release does not observe again at all). Recover before
+                # the next skill, or it runs on a fallen robot and the trace reports no fall.
+                ep.falls += 1
+                if self._recover(ep, after) is None:
+                    return
             i += 1
 
         ep.success = True
