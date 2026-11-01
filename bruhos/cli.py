@@ -108,9 +108,16 @@ def cmd_verify(a: argparse.Namespace) -> int:
 
 
 def cmd_lerobot(a: argparse.Namespace) -> int:
-    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames
+    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames, verify_episode
 
-    ep = load_episode(a.path)
+    try:
+        ep = load_episode(a.path)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        # An unreadable trace is a failed verification, not a crash: `bruhos verify`
+        # already reports these same files as TAMPERED, and export must not crash
+        # on an input its sibling command verdicts cleanly.
+        print(f"TAMPERED  {a.path} (unreadable trace: {e})")
+        return 2
     print(json.dumps({"features": LEROBOT_FEATURES, "frames": to_lerobot_frames(ep)}, indent=2))
     return 0
 
