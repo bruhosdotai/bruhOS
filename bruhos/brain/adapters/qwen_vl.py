@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from typing import Any, Callable
 
 from bruhos.schemas import Observation
@@ -18,8 +19,9 @@ from .openai import OpenAICompatPlanner
 class QwenVLPlanner(OpenAICompatPlanner):
     name = "qwen_vl"
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000/v1", model: str = "Qwen/Qwen2.5-VL-7B-Instruct",
+    def __init__(self, base_url: str | None = None, model: str = "Qwen/Qwen2.5-VL-7B-Instruct",
                  api_key: str = "EMPTY", frame_provider: Callable[[], bytes | None] | None = None, **kw: Any):
+        base_url = base_url or os.environ.get("BRUHOS_LLM_BASE_URL") or "http://127.0.0.1:8000/v1"
         super().__init__(base_url=base_url, model=model, api_key=api_key, **kw)
         self.frame_provider = frame_provider
 
