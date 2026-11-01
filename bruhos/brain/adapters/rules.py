@@ -47,7 +47,7 @@ class RulesPlanner(Planner):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
                 obj = obj if obj not in (None, "line") else "block"
-            return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
+            return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab", target=obj),
                     _c("walk_toward", target="box"), _c("release")]
 
         if has("kick"):
@@ -64,7 +64,7 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
-            return [_c("walk_toward", target=obj), _c("grab")]
+            return [_c("walk_toward", target=obj), _c("grab", target=obj)]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
         if has("look", "face", "turn") and obj:
