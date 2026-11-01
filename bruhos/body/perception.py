@@ -46,7 +46,7 @@ class Detector(Protocol):
 @dataclass
 class ColorBlobDetector:
     camera: CameraModel = field(default_factory=CameraModel)
-    hsv: dict = field(default_factory=lambda: dict(DEFAULT_HSV))
+    hsv: dict = field(default_factory=lambda: {color: list(ranges) for color, ranges in DEFAULT_HSV.items()})
     label: str = "block"
     size_m: float = 0.04                 # TonyPi tabletop blocks are ~4 cm
     min_area_px: int = 300
