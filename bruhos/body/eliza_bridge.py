@@ -19,6 +19,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from bruhos._net import require_secure
 from bruhos.body.base import PRIMITIVES, Body
 from bruhos.schemas import Detection, Imu, Observation
 
@@ -58,6 +59,7 @@ class ElizaBridgeBody(Body):
         self.timeout = float(body.get("timeout_s", 5.0))
         self.fall_deg = float(body.get("fall_deg", 55.0))
         self.forward_sign = int(body.get("forward_sign", 1))
+        self.allow_insecure = bool(body.get("allow_insecure", False))
         walk = cfg.get("walk", {})
         self.walk = {
             "speed": int(walk.get("speed", 2)),
@@ -83,9 +85,11 @@ class ElizaBridgeBody(Body):
         self.durations = self._action_durations()
 
     def _connect(self) -> None:
+        token = os.environ.get(TOKEN_ENV)
+        if token:
+            require_secure(self.url, TOKEN_ENV, self.allow_insecure)
         from websockets.sync.client import connect
 
-        token = os.environ.get(TOKEN_ENV)
         headers = {"Authorization": f"Bearer {token}"} if token else None
         self.ws = connect(self.url, additional_headers=headers, open_timeout=self.timeout).__enter__()
         self._reader = threading.Thread(target=self._read, name="eliza-bridge-reader", daemon=True)

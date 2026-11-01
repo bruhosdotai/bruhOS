@@ -34,7 +34,7 @@ def _run(brain):
 
 @pytest.mark.parametrize("brain", [
     lambda: make_planner("rules"),
-    lambda: OpenAICompatPlanner(base_url="http://x/v1", api_key="k", transport=fake_chat([])),
+    lambda: OpenAICompatPlanner(base_url="https://x/v1", api_key="k", transport=fake_chat([])),
     lambda: QwenVLPlanner(transport=fake_chat([])),
     lambda: LFM3OmniPlanner(transport=fake_chat([])),
     lambda: GR00TS2Planner(reasoner=lambda frame, text, obs: PLAN),
@@ -49,10 +49,10 @@ def test_swapping_brain_keeps_skill_names(brain):
 
 def test_openai_request_shape():
     cap = []
-    OpenAICompatPlanner(base_url="http://h/v1", model="m", api_key="k", transport=fake_chat(cap)).plan(
+    OpenAICompatPlanner(base_url="https://h/v1", model="m", api_key="k", transport=fake_chat(cap)).plan(
         "Wave.", SimBody().observe(), [])
     url, headers, payload = cap[0]
-    assert url == "http://h/v1/chat/completions"
+    assert url == "https://h/v1/chat/completions"
     assert headers["Authorization"] == "Bearer k"
     assert payload["model"] == "m" and payload["temperature"] == 0
     assert payload["response_format"] == {"type": "json_object"}

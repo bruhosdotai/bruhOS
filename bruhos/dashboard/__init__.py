@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from bruhos import __version__
+from bruhos._net import is_loopback
 from bruhos.trace import load_episode, verify_episode
 
 WEB = Path(__file__).with_name('web')
@@ -60,6 +61,10 @@ class Handler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_GET(self):
+        # A page on another site can rebind its hostname to 127.0.0.1; only answer to loopback names.
+        if not is_loopback(urlsplit('//' + (self.headers.get('Host') or '')).hostname):
+            self.send_error(421)
+            return
         path = urlsplit(self.path).path
         if path == '/status':
             data, kind = json.dumps(status_data(self.root)).encode(), 'application/json'

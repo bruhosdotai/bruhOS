@@ -113,7 +113,9 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
     if not obs.line.visible:
         return Outcome(Status.FAILED, "no line in view")
     done = 0
-    while done < args["steps"]:
+    for _ in range(ctx.max_steps):
+        if done >= args["steps"]:
+            break
         if ctx.should_stop():
             return Outcome(Status.STOPPED, "stop requested")
         if obs.line.offset > LINE_DEADBAND:
@@ -128,6 +130,8 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
             return f
         if not obs.line.visible:
             return Outcome(Status.OK, "end of line", {"steps": done})
+    if done < args["steps"]:
+        return Outcome(Status.FAILED, f"step budget used after {done} steps", {"steps": done})
     return Outcome(Status.OK, f"followed {done} steps", {"steps": done})
 
 

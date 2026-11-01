@@ -2,6 +2,7 @@
 # Start the bridge from elizaOS/research/robot first, e.g.
 #   PYTHONPATH=. python -m eliza_robot.bridge.server --backend mock --port 9100
 # Authenticated (physical) bridges read the bearer token from ELIZA_AINEX_BRIDGE_AUTH_TOKEN.
+# The token is only sent over wss:// or to a loopback address (set allow_insecure = true to override).
 
 [body]
 name = "eliza-ainex"

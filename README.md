@@ -156,7 +156,10 @@ bruhos run "Kick the ball." --brain lfm3_omni
 ```
 
 Brain HTTP calls never follow redirects, so an API key cannot be forwarded to another origin: point
-`BRUHOS_LLM_BASE_URL` (or `base_url`) at the final endpoint.
+`BRUHOS_LLM_BASE_URL` (or `base_url`) at the final endpoint. A real API key is only sent over
+`https://` or to this machine (`127.0.0.1`, `localhost`); a LAN server without a key, like the vLLM
+example above, works over plain `http://`. For a keyed server on a trusted network, set
+`allow_insecure = true` under `[brain]`, or use an SSH tunnel.
 
 The `lfm3_omni` brain turns LFM3's thinking off (plans in a few seconds instead of ~50 s on a Pi 5) and
 constrains the reply with a JSON schema built from the skill catalog, so the model cannot produce a

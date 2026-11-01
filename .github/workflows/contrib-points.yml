@@ -19,20 +19,24 @@ jobs:
   points:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
       - name: Compute points
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mkdir -p out && python contrib/score.py --repo "${{ github.repository }}" --out out/points.json
+          REPO: ${{ github.repository }}
+        run: mkdir -p out && python contrib/score.py --repo "$REPO" --out out/points.json
 
       - name: Publish to the scores branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           cd out
           git init -q -b scores
@@ -40,4 +44,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add points.json
           git commit -qm "points $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" scores
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" scores
