@@ -48,6 +48,25 @@ def to_detection(entity: dict[str, Any]) -> Detection:
     )
 
 
+def _telemetry_float(tel: dict[str, Any], key: str) -> float:
+    """Tolerant parse for a streamed IMU telemetry field.
+
+    ``telemetry.basic`` arrives off-machine like the perception entities: a malformed
+    roll/pitch must degrade to the same upright default the missing-key path already
+    uses instead of raising inside ``observe()`` and taking the control loop down.
+    Non-finite values are malformed too: a NaN pitch would silently disable fall
+    detection for the frame.
+    """
+    value = tel.get(key, 0.0)
+    if isinstance(value, bool):
+        return 0.0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 class ElizaBridgeBody(Body):
     name = "eliza_bridge"
 
@@ -148,8 +167,8 @@ class ElizaBridgeBody(Body):
     def observe(self) -> Observation:
         self.frame += 1
         tel = self._telemetry
-        roll = math.degrees(float(tel.get("imu_roll", 0.0)))
-        pitch = math.degrees(float(tel.get("imu_pitch", 0.0)))
+        roll = math.degrees(_telemetry_float(tel, "imu_roll"))
+        pitch = math.degrees(_telemetry_float(tel, "imu_pitch"))
         fallen = abs(roll) > self.fall_deg or abs(pitch) > self.fall_deg
         imu = Imu(roll_deg=round(roll, 1), pitch_deg=round(pitch, 1), fallen=fallen,
                   fell_forward=(pitch * self.forward_sign > 0) if fallen else None)
