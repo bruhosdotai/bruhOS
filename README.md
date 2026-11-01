@@ -84,7 +84,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | `groot_s2` brain | Stub: contract + joint-action guard; real GR00T wrapper is v0.2 |
 | `lerobot_policy` brain | Interface: HTTP client for a skill-JSON policy server |
 | Trace hashing, Merkle root, verify, local sink | Working, tested |
-| IPFS sink (Kubo HTTP API) | Implemented, not covered by tests |
+| IPFS sink (Kubo HTTP API) | Implemented; tested against a loopback fake Kubo |
 | Chain sink | Builds the anchor payload; transaction submit is pluggable, enabled in v0.3 |
 | LeRobot export | Field names / shapes aligned; writing a `LeRobotDataset` is v0.2 |
 | TonyPi body (Hiwonder action groups, OpenCV color blobs, MPU-6050) | Implemented, **not yet validated on a robot** — action-group names must be checked against your image |
