@@ -41,7 +41,12 @@ class RulesPlanner(Planner):
             return [_c("stand_up")]
 
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
-        if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
+        # Bare "pick" is a fetch verb like take/get: without it, the split
+        # form "Pick the red block up (to the box)." planned nothing, since
+        # "pick up" only matches contiguously. The gate half matters as much
+        # as the pickup half: a split pickup with a box destination must plan
+        # the delivery, not a pickup that silently drops it.
+        if has("put", "place", "drop", "bring", "move", "carry", "throw", "pick") and into_box:
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
@@ -63,7 +68,7 @@ class RulesPlanner(Planner):
             return [_c("release")]
 
         obj = _target(s)
-        if has("pick up", "grab", "take", "get", "hold") and obj:
+        if has("pick up", "pick", "grab", "take", "get", "hold") and obj:
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
