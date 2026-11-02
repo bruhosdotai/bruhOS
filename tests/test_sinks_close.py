@@ -68,3 +68,51 @@ def test_flush_waits_for_every_pending_episode():
     assert sink.seen == ["e0", "e1", "e2", "e3", "e4"]
     d.close()
     assert d.flush(timeout=2) is True
+
+
+def test_submit_and_close_cannot_interleave():
+    """The closed check and the enqueue must be one atomic step against close().
+
+    Review #136 (rrokmmc): submit() checked _closed and then called _q.put()
+    separately, so close() could set the flag and enqueue the sentinel between
+    them. The episode then sat behind the sentinel, after the consumer exited:
+    no file, no receipt, flush() False. The window is closed by holding the
+    lifecycle lock across check+put.
+    """
+    sink = RecordingSink()
+    d = SinkDispatcher([sink])
+    put = d._q.put
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_put(item):
+        if not isinstance(item, type(None)):
+            entered.set()
+            release.wait(2.0)
+        return put(item)
+
+    d._q.put = slow_put                     # widen the admission window
+    accepted: list[str] = []
+    refused: list[str] = []
+
+    def submitter(eid):
+        try:
+            d.submit(_episode(eid))
+            accepted.append(eid)
+        except RuntimeError:
+            refused.append(eid)
+
+    t = threading.Thread(target=submitter, args=("race",))
+    t.start()
+    assert entered.wait(2.0), "submit never reached the queue"
+    closer = threading.Thread(target=d.close)
+    closer.start()
+    release.set()
+    t.join(5)
+    closer.join(5)
+
+    assert d.flush(timeout=2.0) is True, "flush hung: an episode was stranded behind the sentinel"
+    if accepted:
+        assert sink.seen == ["race"], "accepted episode was dropped"
+    else:
+        assert refused == ["race"]
+    assert len(accepted) + len(refused) == 1, "episode neither accepted nor refused"

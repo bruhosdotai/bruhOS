@@ -97,14 +97,19 @@ class SinkDispatcher:
         self.receipts: list[tuple[str, str, dict[str, Any] | str]] = []
         self._q: queue.Queue[Episode | None] = queue.Queue()
         self._closed = False
+        self._lifecycle = threading.Lock()   # guards the closed flag against enqueue
         self._t = threading.Thread(target=self._run, name="bruhos-sinks", daemon=True)
         self._t.start()
 
     def submit(self, ep: Episode) -> None:
-        if self._closed:
-            # Queueing here would drop the episode: the consumer thread has exited.
-            raise RuntimeError("SinkDispatcher is closed; episode not queued")
-        self._q.put(ep)
+        # Check-and-enqueue is one step against close(): if close() slipped in
+        # between them the episode would land behind the sentinel, after the
+        # consumer exited -- no file, no receipt, flush() False. Only admission
+        # is serialized; sink emission still happens outside this lock.
+        with self._lifecycle:
+            if self._closed:
+                raise RuntimeError("SinkDispatcher is closed; episode not queued")
+            self._q.put(ep)
 
     def _run(self) -> None:
         while True:
@@ -129,6 +134,8 @@ class SinkDispatcher:
         return done.wait(timeout)
 
     def close(self) -> None:
-        if not self._closed:
+        with self._lifecycle:
+            if self._closed:
+                return
             self._closed = True
             self._q.put(None)
