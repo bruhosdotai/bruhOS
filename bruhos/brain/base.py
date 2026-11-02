@@ -45,12 +45,74 @@ def guard_no_joint_actions(raw: Any) -> None:
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
+# The prose-recovery scan in _balanced_object is O(n^2) in the response length
+# (every '{' restarts an inner scan). The transport allows 4 MiB, so an
+# unbounded recovery would let one adversarial or broken model response wedge
+# the planner thread for hours. A real plan is a few hundred bytes; recovery is
+# only attempted within this bound, and above it the garbage fails immediately
+# with the original JSONDecodeError. The cap changes no recovery outcome: the
+# scan returns None for any unbalanced tail of this size, so capping it only
+# removes the quadratic spin.
+_RECOVERY_MAX_BYTES = 64 * 1024
+
+
+def _balanced_object(text: str) -> str | None:
+    """Return the first balanced top-level JSON object in ``text``, or None.
+
+    The first ``{`` that opens a string is not a JSON start (``{"plan": ...}`` begins with
+    a quoted key), so scan every ``{`` and validate the balanced span by actually parsing
+    it rather than trusting the last ``}`` at depth 0 alone.
+    """
+    start = text.find("{")
+    while start != -1:
+        depth, in_str, esc = 0, False, False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    span = text[start:i + 1]
+                    try:
+                        json.loads(span)
+                    except json.JSONDecodeError:
+                        break
+                    return span
+        start = text.find("{", start + 1)
+    return None
+
 
 def parse_plan(raw: Any) -> list[SkillCall]:
-    """Accept ``{"plan": [...]}``, a list of ``{"skill", "args"}`` objects, or shorthand strings."""
+    """Accept ``{"plan": [...]}``, a list of ``{"skill", "args"}`` objects, or shorthand strings.
+
+    Models frequently wrap the plan in prose ("Here is the plan: {...}"). The fenced
+    JSON is parsed as-is; when that fails, the first balanced JSON object in the text is
+    retried (capped at _RECOVERY_MAX_BYTES so a pathological response cannot wedge the
+    planner thread). Garbage is still rejected — only a genuinely parseable object is
+    recovered.
+    """
     if isinstance(raw, (bytes, str)):
         text = _FENCE.sub("", raw.decode() if isinstance(raw, bytes) else raw).strip()
-        raw = json.loads(text)
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            if len(text) > _RECOVERY_MAX_BYTES:
+                raise
+            candidate = _balanced_object(text)
+            if candidate is None:
+                raise
+            raw = json.loads(candidate)
     guard_no_joint_actions(raw)
     items = raw.get("plan") if isinstance(raw, dict) else raw
     if not isinstance(items, list):
