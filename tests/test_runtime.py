@@ -6,7 +6,7 @@ from bruhos.brain.base import Planner
 from bruhos.runtime import Runtime
 from bruhos.schemas import SkillCall
 from bruhos.sim.kinematic import SimBody, World
-from bruhos.trace import Sink, SinkDispatcher
+from bruhos.trace import Sink, SinkDispatcher, verify_episode
 
 
 class FixedPlanner(Planner):
@@ -93,3 +93,21 @@ def test_failed_sink_does_not_crash():
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
+
+
+def test_stop_skill_stays_latched_until_reset():
+    body = SimBody()
+    runtime = Runtime(body, RulesPlanner())
+
+    stopped = runtime.run("Stop.")
+    assert stopped.success and stopped.end_reason == "stopped"
+
+    blocked = runtime.run("Wave hello.")
+    assert not blocked.success
+    assert blocked.end_reason == "stopped" and not blocked.steps
+    assert not body.world.events
+
+    runtime.reset_stop()
+    resumed = runtime.run("Wave hello.")
+    assert resumed.success and body.world.events == ["wave"]
+    assert all(verify_episode(ep) for ep in (stopped, blocked, resumed))

@@ -116,6 +116,7 @@ class Runtime:
                     return
                 continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
+                self._stop.set()
                 ep.end_reason = "stopped"
                 ep.success = call.skill == "stop" and plan[-1].skill == "stop"
                 return
