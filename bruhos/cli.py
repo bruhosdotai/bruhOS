@@ -101,7 +101,15 @@ def cmd_skills(a: argparse.Namespace) -> int:
 def cmd_verify(a: argparse.Namespace) -> int:
     from bruhos.trace import load_episode, verify_episode
 
-    ep = load_episode(a.path)
+    try:
+        ep = load_episode(a.path)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        # A corrupt header or step line (json.JSONDecodeError is a ValueError)
+        # and a missing path are unreadable traces, not a crash: the verdict is
+        # the same as for a loadable-but-forged trace, and the caller gets a
+        # clean exit code instead of a traceback.
+        print(f"TAMPERED  {a.path} (unreadable trace: {e})")
+        return 2
     ok = verify_episode(ep)
     print(f"{'OK' if ok else 'TAMPERED'}  trace_root={ep.trace_root}  steps={len(ep.steps)}")
     return 0 if ok else 2
