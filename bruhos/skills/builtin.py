@@ -129,6 +129,8 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
         if (f := _fallen(obs)):
             return f
         if not obs.line.visible:
+            if done == 0:
+                return Outcome(Status.FAILED, "lost line", {"steps": done})
             return Outcome(Status.OK, "end of line", {"steps": done})
     if done < args["steps"]:
         return Outcome(Status.FAILED, f"step budget used after {done} steps", {"steps": done})
