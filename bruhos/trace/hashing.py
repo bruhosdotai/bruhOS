@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 from bruhos.schemas import Episode, Step
 
+_SURROGATE = re.compile("[\ud800-\udfff]")
+
 
 def canonical(obj: Any) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    text = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if _SURROGATE.search(text):
+        # argv (surrogateescape) and JSON escapes can carry lone surrogates, which strict UTF-8 refuses.
+        # Join split pairs as a JSON reader would and escape the rest; valid text hashes as before.
+        text = text.encode("utf-16", "surrogatepass").decode("utf-16", "surrogatepass")
+        text = _SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
+    return text.encode()
 
 
 def sha256_hex(b: bytes) -> str:
