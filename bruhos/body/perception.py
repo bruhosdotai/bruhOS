@@ -38,6 +38,18 @@ class CameraModel:
     def distance(self, size_px: float, size_m: float) -> float | None:
         return round(size_m * self.focal_px / size_px, 3) if size_px > 0 else None
 
+    def for_frame(self, width: int, height: int) -> "CameraModel":
+        """The same lens at the resolution the camera actually delivered.
+
+        ``cv2.VideoCapture.set`` is only a request: V4L2 keeps the native size when the asked-for
+        one is unsupported. The horizontal field of view belongs to the lens, so the model is
+        re-derived from the frame size and the configured centre/focal length are never applied to
+        a frame of a different size.
+        """
+        if (width, height) == (self.width, self.height):
+            return self
+        return CameraModel(width, height, self.hfov_deg)
+
 
 class Detector(Protocol):
     def detect(self, frame) -> list[Detection]: ...
@@ -56,6 +68,7 @@ class ColorBlobDetector:
         import numpy as np
 
         hsv = cv2.cvtColor(cv2.GaussianBlur(frame, (5, 5), 0), cv2.COLOR_BGR2HSV)
+        camera = self.camera.for_frame(hsv.shape[1], hsv.shape[0])
         out = []
         for color, ranges in self.hsv.items():
             mask = np.zeros(hsv.shape[:2], np.uint8)
@@ -70,8 +83,8 @@ class ColorBlobDetector:
             if area < self.min_area_px:
                 continue
             x, y, w, h = cv2.boundingRect(c)
-            out.append(Detection(self.label, color, round(self.camera.bearing(x + w / 2), 2),
-                                 self.camera.distance(max(w, h), self.size_m),
+            out.append(Detection(self.label, color, round(camera.bearing(x + w / 2), 2),
+                                 camera.distance(max(w, h), self.size_m),
                                  round(min(1.0, area / (w * h)), 3)))
         return out
 
