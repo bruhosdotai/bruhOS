@@ -123,6 +123,8 @@ class ElizaBridgeBody(Body):
                 done.set()
 
     def _send(self, command: str, payload: dict[str, Any], preempt: bool = False) -> dict[str, Any]:
+        from websockets.exceptions import ConnectionClosed
+
         rid = str(uuid.uuid4())
         done: threading.Event = threading.Event()
         box: list[dict[str, Any]] = []
@@ -142,6 +144,9 @@ class ElizaBridgeBody(Body):
             if not done.wait(self.timeout) or not box:
                 raise BridgeError(f"{command}: no response from bridge")
             return box[0]
+        except ConnectionClosed as exc:
+            # close() may finish while this request waits for the send lock.
+            raise BridgeError(f"{command}: connection closed") from exc
         finally:
             self._pending.pop(rid, None)
 
