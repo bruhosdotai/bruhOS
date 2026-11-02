@@ -160,7 +160,10 @@ class SimBody(Body):
         w = self.world
         if w.holding:
             return False
-        o = self._reachable(GRAB_REACH_M, GRAB_CONE_DEG, lambda o: o.label not in {"box", "ball"})
+        # The box stays ungraspable (it is a container), but a ball is an ordinary
+        # manipulable object: excluding it made "pick up the ball" fail with a
+        # misleading "nothing in reach" even with the ball squarely in reach.
+        o = self._reachable(GRAB_REACH_M, GRAB_CONE_DEG, lambda o: o.label != "box")
         if not o:
             return False
         w.holding = o
