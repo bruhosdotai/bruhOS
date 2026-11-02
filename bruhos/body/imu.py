@@ -19,7 +19,12 @@ class MPU6050:
         self.addr = address
         self.fall_deg = fall_deg
         self.forward_sign = forward_sign      # flip if the board is mounted reversed
-        self.bus.write_byte_data(self.addr, PWR_MGMT_1, 0)
+        try:
+            self.bus.write_byte_data(self.addr, PWR_MGMT_1, 0)
+        except BaseException:
+            # The caller never gets an object to close, so release the bus handle here.
+            self.bus.close()
+            raise
 
     def _word(self, reg: int) -> int:
         hi, lo = self.bus.read_i2c_block_data(self.addr, reg, 2)
