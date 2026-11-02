@@ -221,6 +221,16 @@ Each step is hashed over canonical JSON and chained to the previous step; the ep
 run on a background thread, so a slow or failing sink never blocks the control loop. What goes
 on-chain is `trace_root` plus the skillpack and brain version hashes — not video, not control.
 
+`trace_root` commits to a **unique** step list: odd nodes are promoted rather than duplicated
+and the leaf count is folded into the root, so `[a, b, c]` and `[a, b, c, c]` cannot share a
+root, and an empty trace is `sha256(b"\x00")` rather than the digest of no preimage.
+
+> **Migration note.** That scheme replaces the earlier one, which duplicated the trailing odd
+> node. Traces sealed by a build older than this scheme will report `TAMPERED` from
+> `bruhos verify` and `verified: false` in the dashboard, and a root already anchored through
+> `ChainSink` or pinned through `IpfsSink` cannot be recomputed by the current code — re-seal
+> those traces (or keep the older build) before anchoring anything new.
+
 ## Local trace dashboard
 
 ```sh

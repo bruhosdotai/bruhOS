@@ -47,3 +47,21 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_duplicate_leaf_cannot_collide_with_odd_leaf_count():
+    """Two different step-hash lists must never produce the same trace_root.
+
+    Duplicating the trailing leaf used to make [a, b, c] and [a, b, c, c]
+    hash to the same root, so a trace_root did not uniquely commit to the
+    sequence of steps it claims to cover.
+    """
+    a, b, c = ((bytes([n]) * 32).hex() for n in (0xAA, 0xBB, 0xCC))
+    assert merkle_root([a, b, c]) != merkle_root([a, b, c, c])
+    assert merkle_root([a, b]) != merkle_root([a, b, b, b])
+
+
+def test_root_commits_to_step_count():
+    a = (bytes([0xAA]) * 32).hex()
+    roots = {merkle_root([a] * n) for n in range(1, 8)}
+    assert len(roots) == 7

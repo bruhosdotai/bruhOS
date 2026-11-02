@@ -23,14 +23,29 @@ def step_hash(step: Step, prev: str) -> str:
 
 
 def merkle_root(leaves: list[str]) -> str:
+    """Merkle root of the step hashes.
+
+`trace_root` has to commit to one exact step list. Duplicating the trailing odd
+node (the pre-fix behaviour) made `[a, b, c]` and `[a, b, c, c]` hash to the same
+root, so a bare root -- the value `ChainSink` anchors and `IpfsSink` pins -- did
+not pin the length of the trace. The local verifier was never forgeable that way,
+because `verify_episode` recomputes every chained `step_hash`; the gap is in the
+commitment itself, for whoever holds only the root.
+
+So: odd nodes are promoted, never duplicated, and the leaf count is folded into
+the final hash. An empty trace is `sha256(b"\\x00")`, distinct from any tree and
+from `sha256(b"")`.
+"""
     if not leaves:
-        return sha256_hex(b"")
+        return sha256_hex(b"\x00")
     level = [bytes.fromhex(h) for h in leaves]
     while len(level) > 1:
+        nxt = [hashlib.sha256(level[i] + level[i + 1]).digest()
+               for i in range(0, len(level) - 1, 2)]
         if len(level) % 2:
-            level.append(level[-1])
-        level = [hashlib.sha256(level[i] + level[i + 1]).digest() for i in range(0, len(level), 2)]
-    return level[0].hex()
+            nxt.append(level[-1])          # promote, never duplicate
+        level = nxt
+    return sha256_hex(b"\x01" + len(leaves).to_bytes(8, "big") + level[0])
 
 
 def seal(ep: Episode) -> str:
