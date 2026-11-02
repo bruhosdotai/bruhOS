@@ -165,10 +165,10 @@ class ElizaBridgeBody(Body):
                 ok = self._walk(primitive) if primitive in WALK_PRIMITIVES else self._play(primitive)
             except BridgeError:
                 return False
-        if ok and primitive == "grab":
-            self.holding = "object"
-        elif ok and primitive == "release":
-            self.holding = None
+            if ok and primitive == "grab":
+                self.holding = "object"
+            elif ok and primitive == "release":
+                self.holding = None
         return ok
 
     def _play(self, primitive: str) -> bool:
