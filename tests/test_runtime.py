@@ -93,3 +93,44 @@ def test_failed_sink_does_not_crash():
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
+
+
+def test_kick_of_a_named_non_ball_is_not_certified_success():
+    """A kick aimed at a block or the box must not report success when nothing was touched."""
+    body = SimBody()
+    red = body.world.get("red_block")
+    start = (red.x, red.y)
+    ep = Runtime(body, RulesPlanner()).run("Kick the red block.")
+    assert not ep.success
+    assert ep.end_reason == "no plan for instruction"
+    assert ep.plan == []
+    assert ep.steps == []
+    assert (red.x, red.y) == start
+    assert body.world.events == []
+
+    body = SimBody()
+    box = body.world.get("box")
+    start = (box.x, box.y)
+    ep = Runtime(body, RulesPlanner()).run("Kick the box with your left foot.")
+    assert not ep.success and ep.plan == [] and ep.steps == []
+    assert (box.x, box.y) == start and body.world.events == []
+
+    gestured = Runtime(SimBody(), RulesPlanner()).run("Kick.")
+    assert gestured.success and gestured.plan[0]["skill"] == "kick"
+
+    kicked = SimBody()
+    ball = Runtime(kicked, RulesPlanner()).run("Kick the ball.")
+    assert ball.success and "kicked:yellow_ball" in kicked.world.events
+
+
+def test_kick_of_a_color_only_ball_still_lands():
+    """'Kick the yellow one.' names the ball by color and must still kick it."""
+    body = SimBody()
+    ball = body.world.get("yellow_ball")
+    assert ball is not None
+    ball.x, ball.y = 0.10, 0.0
+    ep = Runtime(body, RulesPlanner()).run("Kick the yellow one.")
+    assert ep.success, ep.end_reason
+    assert [c["skill"] for c in ep.plan] == ["walk_toward", "kick"]
+    assert ep.plan[0]["args"]["target"] == "yellow"
+    assert "kicked:yellow_ball" in body.world.events
