@@ -64,9 +64,14 @@ class TonyPiBody(Body):
             self.line = LineDetector()
         imu = cfg.get("imu", {})
         if imu.get("enabled", True):
-            from .imu import MPU6050
-            self.imu = MPU6050(imu.get("bus", 1), int(str(imu.get("address", "0x68")), 0),
-                               imu.get("fall_deg", 55.0), imu.get("forward_sign", 1))
+            if imu.get("driver", "i2c") == "controller":
+                from .imu import ControllerIMU
+                self.imu = ControllerIMU(self.agc.board, imu.get("fall_deg", 55.0),
+                                         imu.get("forward_sign", 1), **imu.get("orientation", {}))
+            else:
+                from .imu import MPU6050
+                self.imu = MPU6050(imu.get("bus", 1), int(str(imu.get("address", "0x68")), 0),
+                                   imu.get("fall_deg", 55.0), imu.get("forward_sign", 1))
 
     def observe(self) -> Observation:
         self.frame += 1
@@ -87,7 +92,7 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
-            kw = {"path": self.action_path} if self.action_path else {}
+            kw = {"path": self.action_path.rstrip("/") + "/"} if self.action_path else {}
             try:
                 self.agc.runActionGroup(group, **kw)
             except TypeError:
