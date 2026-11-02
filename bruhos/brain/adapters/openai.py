@@ -67,16 +67,20 @@ class OpenAICompatPlanner(Planner):
         self.transport = transport or http_post
         self.version = f"{self.name}:{self.model}"
 
-    def user_content(self, instruction: str, obs: Observation) -> Any:
-        return json.dumps({"instruction": instruction, "observation": obs.to_dict()})
+    def user_content(self, instruction: str, obs: Observation,
+                     history: list[dict[str, Any]] | None = None) -> Any:
+        payload: dict[str, Any] = {"instruction": instruction, "observation": obs.to_dict()}
+        if history:
+            payload["history"] = history
+        return json.dumps(payload)
 
     def messages(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]],
                  history: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-        msgs = [{"role": "system", "content": SYSTEM_PROMPT + json.dumps(catalog, indent=1)}]
-        if history:
-            msgs.append({"role": "user", "content": "Previous attempt failed. History: " + json.dumps(history)})
-        msgs.append({"role": "user", "content": self.user_content(instruction, obs)})
-        return msgs
+        return [
+            {"role": "system", "content": SYSTEM_PROMPT + json.dumps(catalog, indent=1)},
+            {"role": "user", "content": self.user_content(instruction, obs, history)},
+        ]
+
 
     def extra_payload(self, catalog: list[dict[str, Any]]) -> dict[str, Any]:
         """Server-specific request fields merged into the payload (subclasses override)."""

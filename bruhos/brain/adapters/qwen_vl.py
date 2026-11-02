@@ -23,8 +23,12 @@ class QwenVLPlanner(OpenAICompatPlanner):
         super().__init__(base_url=base_url, model=model, api_key=api_key, **kw)
         self.frame_provider = frame_provider
 
-    def user_content(self, instruction: str, obs: Observation) -> Any:
-        text = json.dumps({"instruction": instruction, "observation": obs.to_dict()})
+    def user_content(self, instruction: str, obs: Observation,
+                     history: list[dict[str, Any]] | None = None) -> Any:
+        payload: dict[str, Any] = {"instruction": instruction, "observation": obs.to_dict()}
+        if history:
+            payload["history"] = history
+        text = json.dumps(payload)
         jpeg = self.frame_provider() if self.frame_provider else None
         if not jpeg:
             return text
