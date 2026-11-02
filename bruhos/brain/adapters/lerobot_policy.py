@@ -26,7 +26,15 @@ class LeRobotPolicyPlanner(Planner):
         self.transport = transport or http_post
         self.version = f"lerobot_policy:{url}"
 
-    def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
-        body = json.dumps({"instruction": instruction, "observation": obs.to_dict(), "skills": catalog}).encode()
+    def _post(self, payload: dict[str, Any]) -> list[SkillCall]:
+        body = json.dumps(payload).encode()
         raw = self.transport(self.url, {"Content-Type": "application/json"}, body, self.timeout)
         return parse_plan(raw)
+
+    def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
+        return self._post({"instruction": instruction, "observation": obs.to_dict(), "skills": catalog})
+
+    def replan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]],
+               history: list[dict[str, Any]]) -> list[SkillCall]:
+        return self._post({"instruction": instruction, "observation": obs.to_dict(),
+                           "skills": catalog, "history": history})
