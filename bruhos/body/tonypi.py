@@ -13,7 +13,7 @@ import threading
 import time
 from typing import Any
 
-from bruhos.body.base import PRIMITIVES, Body
+from bruhos.body.base import PRIMITIVES, Body, parse_turn_step
 from bruhos.schemas import Imu, LineReading, Observation
 
 SDK_MODULES = ("hiwonder.ActionGroupControl", "HiwonderSDK.ActionGroupControl", "ActionGroupControl")
@@ -37,7 +37,7 @@ class TonyPiBody(Body):
     def __init__(self, cfg: dict[str, Any]):
         body = cfg.get("body", {})
         self.name = body.get("name", "tonypi")
-        self.turn_step_deg = float(body.get("turn_step_deg", 15.0))
+        self.turn_step_deg = parse_turn_step(body.get("turn_step_deg", 15.0))
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
