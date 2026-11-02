@@ -45,6 +45,16 @@ def guard_no_joint_actions(raw: Any) -> None:
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
+# The prose-recovery scan in _balanced_object is O(n^2) in the response length
+# (every '{' restarts an inner scan). The transport allows 4 MiB, so an
+# unbounded recovery would let one adversarial or broken model response wedge
+# the planner thread for hours. A real plan is a few hundred bytes; recovery is
+# only attempted within this bound, and above it the garbage fails immediately
+# with the original JSONDecodeError. The cap changes no recovery outcome: the
+# scan returns None for any unbalanced tail of this size, so capping it only
+# removes the quadratic spin.
+_RECOVERY_MAX_BYTES = 64 * 1024
+
 
 def _balanced_object(text: str) -> str | None:
     """Return the first balanced top-level JSON object in ``text``, or None.
@@ -88,13 +98,17 @@ def parse_plan(raw: Any) -> list[SkillCall]:
 
     Models frequently wrap the plan in prose ("Here is the plan: {...}"). The fenced
     JSON is parsed as-is; when that fails, the first balanced JSON object in the text is
-    retried. Garbage is still rejected — only a genuinely parseable object is recovered.
+    retried (capped at _RECOVERY_MAX_BYTES so a pathological response cannot wedge the
+    planner thread). Garbage is still rejected — only a genuinely parseable object is
+    recovered.
     """
     if isinstance(raw, (bytes, str)):
         text = _FENCE.sub("", raw.decode() if isinstance(raw, bytes) else raw).strip()
         try:
             raw = json.loads(text)
         except json.JSONDecodeError:
+            if len(text) > _RECOVERY_MAX_BYTES:
+                raise
             candidate = _balanced_object(text)
             if candidate is None:
                 raise

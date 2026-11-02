@@ -61,3 +61,27 @@ def test_continuous_chunk_guard_applies_to_recovered_object():
     # Recovery must not bypass the joint-action guard.
     with pytest.raises(IntegrationError):
         parse_plan('plan: {"plan": [[1, 2, 3]]}')
+
+
+def test_pathological_unbalanced_response_fails_fast():
+    # A response of 100k never-balancing '{' must not wedge the planner: the
+    # recovery scan is O(n^2), so it is capped by _RECOVERY_MAX_BYTES and the
+    # garbage is rejected with the original JSONDecodeError in milliseconds.
+    # Without the cap this takes tens of seconds at 60KB and hours at 4MiB.
+    import time
+    from bruhos.brain.base import _RECOVERY_MAX_BYTES
+
+    hostile = "{" * (_RECOVERY_MAX_BYTES * 2)  # 128KB of unbalanced braces
+    t0 = time.monotonic()
+    with pytest.raises(ValueError):
+        parse_plan(hostile)
+    assert time.monotonic() - t0 < 2.0, "recovery scan wedged on unbalanced braces"
+
+
+def test_recovery_still_works_just_under_cap():
+    # A real plan wrapped in prose well within the cap is still recovered.
+    from bruhos.brain.base import _RECOVERY_MAX_BYTES
+
+    pad = "x" * (_RECOVERY_MAX_BYTES - len(PLAN) - 32)
+    calls = parse_plan(f"Here is the plan:\n{PLAN}\n{pad}")
+    assert calls[0].skill == "wave"
