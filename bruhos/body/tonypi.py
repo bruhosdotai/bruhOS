@@ -46,11 +46,16 @@ class TonyPiBody(Body):
         self.frame = 0
         self.holding: str | None = None
         self._last_seen: dict[str, Any] = {}
-        self._setup_sensors(cfg)
+        self.cap = self.detector = self.line = self.imu = None
+        try:
+            self._setup_sensors(cfg)
+        except BaseException:
+            # A later sensor/config failure must not keep an acquired camera open.
+            self.close()
+            raise
 
     def _setup_sensors(self, cfg: dict[str, Any]) -> None:
         cam = cfg.get("camera", {})
-        self.cap = self.detector = self.line = self.imu = None
         if cam.get("enabled", True):
             import cv2
 
