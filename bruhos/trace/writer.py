@@ -28,6 +28,9 @@ def load_episode(path: str | Path) -> Episode:
     steps = []
     with (d / "steps.jsonl").open() as f:
         for line in f:
+            line = line.strip()
+            if not line:
+                continue
             s = json.loads(line)
             steps.append(Step(index=s["index"], t=s["t"], call=s["call"], outcome=s["outcome"],
                               obs_before=s["obs_before"], obs_after=s["obs_after"],
