@@ -75,6 +75,8 @@ class SimBody(Body):
 
     def __init__(self, world: World | None = None, fall_prob: float = 0.0,
                  falls_at: set[int] | None = None, seed: int = 0):
+        if not math.isfinite(fall_prob) or not 0.0 <= fall_prob <= 1.0:
+            raise ValueError("fall_prob must be a finite probability between 0 and 1")
         self.world = world or World.tabletop()
         self.fall_prob = fall_prob
         self.falls_at = set(falls_at or ())
