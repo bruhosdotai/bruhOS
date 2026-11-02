@@ -50,7 +50,7 @@ class Runtime:
     # ---- episode ----
     def run(self, instruction: str) -> Episode:
         ep = Episode(
-            episode_id=time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6],
+            episode_id=time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex,
             instruction=instruction, brain=self.brain.name, body=self.body.name,
             started_at=time.time(), skillpack_hash=catalog_hash(), brain_version=self.brain.version,
         )
