@@ -47,3 +47,29 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+class _ModelReply(RulesPlanner):
+    """A chat brain whose JSON reply ends in a lone surrogate escape (an emoji cut in half)."""
+
+    def plan(self, instruction, obs, catalog):
+        from bruhos.brain import parse_plan
+        return parse_plan('{"plan": [{"skill": "wave", "args": {}}, '
+                          '{"skill": "detect", "args": {"target": "box \\ud83e"}}]}')
+
+
+def test_lone_surrogates_are_sealed_and_saved(tmp_path):
+    # argv carries undecodable bytes as lone surrogates (surrogateescape); JSON can decode them too.
+    for brain, instruction in [(RulesPlanner(), "Wave hello \udcff"), (_ModelReply(), "Wave hello.")]:
+        ep = Runtime(SimBody(), brain).run(instruction)
+        assert len(ep.trace_root) == 64 and verify_episode(ep)
+        loaded = load_episode(LocalSink(tmp_path).emit(ep)["path"])
+        assert verify_episode(loaded) and loaded.trace_root == ep.trace_root
+
+
+def test_canonical_bytes_unchanged_for_valid_text():
+    from bruhos.trace.hashing import canonical
+
+    assert canonical({"b": "招手 🤖", "a": 1}) == '{"a":1,"b":"招手 🤖"}'.encode()
+    # A split pair hashes the way a JSON reader will load it back: as the joined character.
+    assert canonical([chr(0xD83E) + chr(0xDD16)]) == canonical(["🤖"])
