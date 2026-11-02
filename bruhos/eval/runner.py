@@ -94,6 +94,7 @@ class EvalReport:
 def run_eval(make_brain: Callable[[], Planner], fall_prob: float = 0.0, seed: int = 0,
              prompts: list[dict[str, Any]] | None = None) -> EvalReport:
     results = []
+    brain_name = None
     for i, p in enumerate(prompts or load_prompts()):
         overrides = dict(p.get("world", {}))
         world = World.tabletop(line_m=overrides.pop("line_m", 0.0))
@@ -101,10 +102,13 @@ def run_eval(make_brain: Callable[[], Planner], fall_prob: float = 0.0, seed: in
             setattr(world, k, v)
         body = SimBody(world, fall_prob=fall_prob, seed=seed * 1000 + i)
         brain = make_brain()
+        if brain_name is None:
+            brain_name = brain.name
         ep = Runtime(body, brain, config=RuntimeConfig()).run(p["text"])
         failed = [e for e in p["expect"] if not check(e, ep, world)]
         recovered = sum(1 for s in ep.steps if s.kind == "recovery" and s.outcome["status"] == "ok")
         initial_fall = 1 if p.get("world", {}).get("fallen") else 0
         results.append(PromptResult(p["text"], not failed, ep.end_reason,
                                     [f"{c['skill']}" for c in ep.plan], ep.falls + initial_fall, recovered, failed))
-    return EvalReport(brain=make_brain().name, fall_prob=fall_prob, seed=seed, results=results)
+    return EvalReport(brain=brain_name if brain_name is not None else make_brain().name,
+                      fall_prob=fall_prob, seed=seed, results=results)
