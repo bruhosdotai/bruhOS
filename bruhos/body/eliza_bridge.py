@@ -151,8 +151,9 @@ class ElizaBridgeBody(Body):
         roll = math.degrees(float(tel.get("imu_roll", 0.0)))
         pitch = math.degrees(float(tel.get("imu_pitch", 0.0)))
         fallen = abs(roll) > self.fall_deg or abs(pitch) > self.fall_deg
+        fell_forward = (pitch * self.forward_sign > 0) if abs(pitch) > self.fall_deg else None
         imu = Imu(roll_deg=round(roll, 1), pitch_deg=round(pitch, 1), fallen=fallen,
-                  fell_forward=(pitch * self.forward_sign > 0) if fallen else None)
+                  fell_forward=fell_forward)
         return Observation(t=round(time.monotonic(), 3), frame=self.frame,
                            objects=[to_detection(e) for e in self._entities], imu=imu, holding=self.holding)
 

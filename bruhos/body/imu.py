@@ -31,7 +31,8 @@ class MPU6050:
         roll = math.degrees(math.atan2(ay, az))
         pitch = math.degrees(math.atan2(-ax, math.hypot(ay, az))) * self.forward_sign
         fallen = abs(pitch) > self.fall_deg or abs(roll) > self.fall_deg
-        return Imu(round(roll, 2), round(pitch, 2), fallen, (pitch > 0) if fallen else None)
+        fell_forward = (pitch > 0) if abs(pitch) > self.fall_deg else None
+        return Imu(round(roll, 2), round(pitch, 2), fallen, fell_forward)
 
     def close(self) -> None:
         self.bus.close()
