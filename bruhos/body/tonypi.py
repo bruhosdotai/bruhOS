@@ -8,6 +8,7 @@ firmware images, so the mapping lives in ``configs/tonypi*.toml`` — check them
 from __future__ import annotations
 
 import importlib
+import inspect
 import sys
 import threading
 import time
@@ -31,6 +32,15 @@ def _load_agc(sdk_path: str | None):
     raise ImportError("Hiwonder ActionGroupControl not found; set [body].sdk_path. Tried: " + "; ".join(errors))
 
 
+def _accepts_path_kwarg(fn) -> bool:
+    """True when runActionGroup can take path= (modern firmware images)."""
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):        # C extension / builtins: assume modern
+        return True
+    return "path" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 class TonyPiBody(Body):
     name = "tonypi"
 
@@ -41,6 +51,7 @@ class TonyPiBody(Body):
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
+        self._agc_takes_path = _accepts_path_kwarg(self.agc.runActionGroup)
         self._lock = threading.Lock()
         self._halted = threading.Event()
         self.frame = 0
@@ -87,10 +98,13 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
-            kw = {"path": self.action_path} if self.action_path else {}
-            try:
-                self.agc.runActionGroup(group, **kw)
-            except TypeError:
+            # Whether the image accepts path= is decided once, from the signature.
+            # Catching TypeError to fall back replayed the action group whenever the
+            # SDK raised TypeError from *inside* runActionGroup -- one primitive ran
+            # the motion twice on a humanoid.
+            if self.action_path and self._agc_takes_path:
+                self.agc.runActionGroup(group, path=self.action_path)
+            else:
                 self.agc.runActionGroup(group)
         if primitive == "grab":
             self.holding = "object"
