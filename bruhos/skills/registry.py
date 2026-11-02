@@ -67,6 +67,34 @@ def skill(spec: SkillSpec):
     return deco
 
 
+_BOOL_TRUE = {"true", "1"}
+_BOOL_FALSE = {"false", "0"}
+
+
+def _coerce(skill: str, key: str, a: Arg, v: Any) -> Any:
+    """Coerce one argument without silently changing its meaning."""
+    if a.type is bool:
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, int) and v in (0, 1):
+            return bool(v)
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in _BOOL_TRUE:
+                return True
+            if s in _BOOL_FALSE:
+                return False
+        raise SkillError(f"{skill}.{key}: expected bool, got {v!r}")
+    if a.type is int:
+        if isinstance(v, bool):
+            raise SkillError(f"{skill}.{key}: expected int, got {v!r}")
+        if isinstance(v, float):
+            if not v.is_integer():
+                raise SkillError(f"{skill}.{key}: expected int, got {v!r}")
+            return int(v)
+    return a.type(v)
+
+
 def validate(call: SkillCall) -> SkillCall:
     """Return a normalized call (defaults filled, types coerced) or raise SkillError."""
     spec = SKILLS.get(call.skill)
@@ -85,7 +113,9 @@ def validate(call: SkillCall) -> SkillCall:
             continue
         v = call.args[k]
         try:
-            v = a.type(v)
+            v = _coerce(call.skill, k, a, v)
+        except SkillError:
+            raise
         except (TypeError, ValueError, OverflowError) as e:
             raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}") from e
         if isinstance(v, float) and not math.isfinite(v):
