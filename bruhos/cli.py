@@ -30,9 +30,10 @@ def _brain(name: str | None, cfg: dict[str, Any]):
     from bruhos.brain import make_planner
 
     bcfg = dict(cfg.get("brain", {}))
-    name = name or bcfg.pop("name", "rules")
-    bcfg.pop("name", None)
-    return make_planner(name, **bcfg)
+    configured = bcfg.pop("name", "rules")
+    if name and name != configured:
+        bcfg = {}       # [brain] settings belong to the configured brain, not to the --brain override
+    return make_planner(name or configured, **bcfg)
 
 
 def _body(name: str, cfg: dict[str, Any], fall_prob: float, seed: int):
