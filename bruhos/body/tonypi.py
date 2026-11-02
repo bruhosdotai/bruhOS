@@ -8,6 +8,7 @@ firmware images, so the mapping lives in ``configs/tonypi*.toml`` — check them
 from __future__ import annotations
 
 import importlib
+import inspect
 import sys
 import threading
 import time
@@ -31,6 +32,16 @@ def _load_agc(sdk_path: str | None):
     raise ImportError("Hiwonder ActionGroupControl not found; set [body].sdk_path. Tried: " + "; ".join(errors))
 
 
+def _takes_path(fn) -> bool:
+    """Whether ``runActionGroup`` accepts ``path=``. Decided from the signature, never by calling it:
+    a retry after a TypeError would replay an action group the servos may already be running."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):          # not introspectable: pass the path the operator configured
+        return True
+    return any(p.name == "path" or p.kind is p.VAR_KEYWORD for p in params)
+
+
 class TonyPiBody(Body):
     name = "tonypi"
 
@@ -41,6 +52,7 @@ class TonyPiBody(Body):
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
+        self._path_kw = bool(self.action_path) and _takes_path(self.agc.runActionGroup)
         self._lock = threading.Lock()
         self._halted = threading.Event()
         self.frame = 0
@@ -87,11 +99,8 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
-            kw = {"path": self.action_path} if self.action_path else {}
-            try:
-                self.agc.runActionGroup(group, **kw)
-            except TypeError:
-                self.agc.runActionGroup(group)
+            kw = {"path": self.action_path} if self._path_kw else {}
+            self.agc.runActionGroup(group, **kw)
         if primitive == "grab":
             self.holding = "object"
         elif primitive == "release":
