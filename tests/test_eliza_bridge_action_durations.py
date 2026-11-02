@@ -14,13 +14,40 @@ import time
 
 import pytest
 
-serve = pytest.importorskip("websockets.sync.server").serve
+from bruhos.body.eliza_bridge import ElizaBridgeBody
 
-from bruhos.body.eliza_bridge import ElizaBridgeBody  # noqa: E402
 
+def _parsed(reply):
+    """_action_durations on a canned profile.describe reply, without a socket (runs in CI)."""
+    body = ElizaBridgeBody.__new__(ElizaBridgeBody)
+    body._send = lambda command, payload: reply
+    return body._action_durations()
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("nan"), -1.0, 0.0, "slow", None, [1], True])
+def test_parse_drops_unusable_durations(bad):
+    reply = {"ok": True, "data": {"profile": {"actions": {"groups": {"wave": {"duration_s": bad},
+                                                                    "stand": {"duration_s": 0.2}}}}}}
+    assert _parsed(reply) == {"stand": 0.2}
+
+
+@pytest.mark.parametrize("reply", [{"data": ["x"]}, {"data": {"profile": "x"}},
+                                   {"data": {"profile": {"actions": {"groups": [1]}}}}, ["not", "a", "dict"]])
+def test_parse_survives_malformed_replies(reply):
+    assert _parsed(reply) == {}
+
+
+def test_parse_keeps_valid_input_as_on_main():
+    reply = {"data": {"profile": {"actions": {"groups": {"wave": {"duration_s": 0.3}, "stand": {"duration_s": 2},
+                                                         "kick": {"duration_s": "0.5"}, "bow": {}}}}}}
+    assert _parsed(reply) == {"wave": 0.3, "stand": 2.0, "kick": 0.5, "bow": 1.0}
+
+
+# ---- end to end over a loopback WebSocket (optional "eliza" extra) ----
 
 class ProfileBridge:
     def __init__(self, profile_data):
+        serve = pytest.importorskip("websockets.sync.server").serve
         self.profile_data = profile_data
         self.server = serve(self._handle, "127.0.0.1", 0)
         self.url = f"ws://127.0.0.1:{self.server.socket.getsockname()[1]}"
