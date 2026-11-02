@@ -11,6 +11,7 @@ so walking primitives re-send ``walk.set`` while they run.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import threading
@@ -23,6 +24,8 @@ from bruhos._net import require_secure
 from bruhos.body.base import PRIMITIVES, Body
 from bruhos.schemas import Detection, Imu, Observation
 
+log = logging.getLogger(__name__)
+
 WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
 COLORS = {"red", "green", "blue", "yellow", "orange", "purple", "black", "white", "pink"}
 TOKEN_ENV = "ELIZA_AINEX_BRIDGE_AUTH_TOKEN"
@@ -32,19 +35,47 @@ class BridgeError(RuntimeError):
     pass
 
 
-def to_detection(entity: dict[str, Any]) -> Detection:
-    """Bridge perception entity (robot frame: +x forward, +y left) -> bruhOS detection."""
+def _num(value: Any) -> float | None:
+    """Finite float from a bridge field, or ``None`` if it is absent, unparseable or non-finite."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def to_detection(entity: dict[str, Any]) -> Detection | None:
+    """Bridge perception entity (robot frame: +x forward, +y left) -> bruhOS detection.
+
+    ``None`` when the entity carries no usable position: an entity placed at the
+    origin from a garbage coordinate reads as "in the robot's hand" and makes
+    ``walk_toward`` report arrival without moving. An unusable distance stays
+    unknown (``None``) rather than zero for the same reason.
+    """
+    if not isinstance(entity, dict):
+        entity = {}
     words = str(entity.get("label", "object")).lower().split()
     color = words[0] if len(words) > 1 and words[0] in COLORS else None
     label = "_".join(words[1:] if color else words) or "object"
-    x, y = float(entity.get("x", 0.0)), float(entity.get("y", 0.0))
-    dist = entity.get("distance")
+    x = _num(entity["x"]) if "x" in entity else 0.0
+    y = _num(entity["y"]) if "y" in entity else 0.0
+    raw_dist = entity.get("distance")
+    dist = _num(raw_dist)
+    if x is None or y is None:
+        return None
+    if "x" not in entity and "y" not in entity and dist is None:
+        return None
+    if raw_dist is None:
+        distance = round(math.hypot(x, y), 3)
+    else:
+        distance = round(dist, 3) if dist is not None else None
+    confidence = _num(entity.get("confidence")) if "confidence" in entity else 1.0
     return Detection(
         label=label,
         color=color,
         bearing_deg=round(math.degrees(math.atan2(y, x)), 1) if (x or y) else 0.0,
-        distance_m=round(float(dist), 3) if dist is not None else round(math.hypot(x, y), 3),
-        confidence=float(entity.get("confidence", 1.0)),
+        distance_m=distance,
+        confidence=confidence if confidence is not None else 1.0,
     )
 
 
@@ -99,27 +130,35 @@ class ElizaBridgeBody(Body):
         try:
             for raw in self.ws:
                 msg = json.loads(raw)
+                if not isinstance(msg, dict):
+                    continue
                 if msg.get("type") == "response":
                     slot = self._pending.get(msg.get("request_id", ""))
                     if slot:
                         slot[1].append(msg)
                         slot[0].set()
                     continue
-                event, data = msg.get("event"), msg.get("data", {})
-                if event == "session.hello":
-                    self.hello = data
-                elif event == "telemetry.basic":
-                    self._telemetry = data
-                elif event == "telemetry.perception":
-                    self._entities = list(data.get("entities", []))
-                elif event == "safety.deadman_triggered":
-                    self._deadman.set()
+                self._handle_event(msg.get("event"), msg.get("data"))
         except Exception:
-            pass
+            log.exception("eliza bridge reader stopped; telemetry is frozen until reconnect")
         finally:
             self._closed.set()
             for done, _ in list(self._pending.values()):
                 done.set()
+
+    def _handle_event(self, event: Any, data: Any) -> None:
+        """Feed one bridge event into body state. Bridge peers are not trusted: malformed
+        frames degrade to defaults instead of killing the reader or poisoning observations."""
+        if not isinstance(data, dict):
+            data = {}
+        if event == "session.hello":
+            self.hello = data
+        elif event == "telemetry.basic":
+            self._telemetry = data
+        elif event == "telemetry.perception":
+            self._entities = [e for e in data.get("entities") or [] if isinstance(e, dict)]
+        elif event == "safety.deadman_triggered":
+            self._deadman.set()
 
     def _send(self, command: str, payload: dict[str, Any], preempt: bool = False) -> dict[str, Any]:
         rid = str(uuid.uuid4())
@@ -148,13 +187,13 @@ class ElizaBridgeBody(Body):
     def observe(self) -> Observation:
         self.frame += 1
         tel = self._telemetry
-        roll = math.degrees(float(tel.get("imu_roll", 0.0)))
-        pitch = math.degrees(float(tel.get("imu_pitch", 0.0)))
+        roll = math.degrees(_num(tel.get("imu_roll", 0.0)) or 0.0)
+        pitch = math.degrees(_num(tel.get("imu_pitch", 0.0)) or 0.0)
         fallen = abs(roll) > self.fall_deg or abs(pitch) > self.fall_deg
         imu = Imu(roll_deg=round(roll, 1), pitch_deg=round(pitch, 1), fallen=fallen,
                   fell_forward=(pitch * self.forward_sign > 0) if fallen else None)
         return Observation(t=round(time.monotonic(), 3), frame=self.frame,
-                           objects=[to_detection(e) for e in self._entities], imu=imu, holding=self.holding)
+                           objects=[d for e in self._entities if (d := to_detection(e)) is not None], imu=imu, holding=self.holding)
 
     def act(self, primitive: str) -> bool:
         if self._halted.is_set() or self._closed.is_set():
