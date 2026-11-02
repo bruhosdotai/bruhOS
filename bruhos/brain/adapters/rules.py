@@ -54,6 +54,10 @@ class RulesPlanner(Planner):
             foot = "left" if has("left") else "right"
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
+            # A named block, box, or other non-ball is not a kick target. A bare
+            # kick still returns ok, so planning one would certify a miss.
+            if _target(s) is not None:
+                return []
             return [_c("kick", foot=foot)]
         if has("follow"):
             return [_c("follow_line")]
