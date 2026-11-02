@@ -40,7 +40,11 @@ class RulesPlanner(Planner):
         if has("stand up", "get up", "get back up"):
             return [_c("stand_up")]
 
-        into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
+        # "next to" is a spatial relation, not a delivery destination: the "to"
+        # in "next to the box" must not claim the into_box plan, since the skill
+        # set has no place-near primitive (put/bring-class next-to instructions
+        # get no plan; move/drop fall back to their pre-existing branches).
+        into_box = re.search(r"\b(in|into|inside|(?<!next\s)to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
