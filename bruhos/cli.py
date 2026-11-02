@@ -108,9 +108,17 @@ def cmd_verify(a: argparse.Namespace) -> int:
 
 
 def cmd_lerobot(a: argparse.Namespace) -> int:
-    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames
+    from bruhos.trace import LEROBOT_FEATURES, load_episode, to_lerobot_frames, verify_episode
 
     ep = load_episode(a.path)
+    if not verify_episode(ep):
+        # Frames are what a learner consumes: exporting an unverified trace would
+        # launder a forged episode into a dataset. Refuse unless asked explicitly.
+        if not getattr(a, "force", False):
+            print(f"TAMPERED  trace_root={ep.trace_root}  steps={len(ep.steps)}  "
+                  f"(refusing to export; use --force to export anyway)", file=sys.stderr)
+            return 2
+        print(f"WARNING: exporting a TAMPERED trace (trace_root={ep.trace_root})", file=sys.stderr)
     print(json.dumps({"features": LEROBOT_FEATURES, "frames": to_lerobot_frames(ep)}, indent=2))
     return 0
 
@@ -152,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
 
     lr = sub.add_parser("lerobot", help="print LeRobot-aligned frames for a trace")
     lr.add_argument("path")
+    lr.add_argument("--force", action="store_true",
+                    help="export even when the trace does not verify (warned on stderr)")
     lr.set_defaults(fn=cmd_lerobot)
 
     dashboard = sub.add_parser("dashboard", help="inspect saved traces in a local read-only console")
