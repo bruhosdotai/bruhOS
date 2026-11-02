@@ -14,6 +14,17 @@ class TraceWriter:
 
     def write(self, ep: Episode) -> Path:
         d = self.root / ep.episode_id
+        header = d / "episode.json"
+        if header.exists():
+            # Never replace a sealed record with a different one (id collision, clock reset, copied
+            # trace directory). Rewriting the identical sealed episode is harmless and allowed.
+            try:
+                existing = json.loads(header.read_text()).get("trace_root")
+            except (OSError, ValueError, AttributeError):
+                existing = None
+            if existing != ep.trace_root:
+                raise FileExistsError(f"trace {d} already holds a different sealed episode "
+                                      f"({ep.episode_id}); refusing to overwrite it")
         d.mkdir(parents=True, exist_ok=True)
         with (d / "steps.jsonl").open("w") as f:
             for s in ep.steps:
