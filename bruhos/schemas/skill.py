@@ -74,7 +74,10 @@ def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall
                 if k is None:
                     raise ValueError(f"{name} takes no positional argument: {text!r}")
                 v = part
-            args[k] = _coerce(v.strip("'\""))
+            if len(v) >= 2 and v[0] in "'\"" and v[-1] == v[0]:
+                args[k] = v[1:-1]
+            else:
+                args[k] = _coerce(v)
     return SkillCall(name, args)
 
 
