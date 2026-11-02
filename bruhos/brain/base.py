@@ -43,7 +43,7 @@ def guard_no_joint_actions(raw: Any) -> None:
         raise IntegrationError("brain returned a continuous action chunk; bruhOS only executes whitelisted skills")
 
 
-_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+_FENCE = re.compile(r"^\s*```(?:[a-zA-Z0-9_-]+)?\s*|\s*```\s*$", re.MULTILINE)
 
 
 def parse_plan(raw: Any) -> list[SkillCall]:
