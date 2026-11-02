@@ -84,6 +84,11 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        if isinstance(v, bool):
+            # bool is an int subclass in Python, so without this check
+            # int(True)/float(True) would silently rewrite a JSON boolean
+            # to 1/1.0 instead of rejecting it.
+            raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}")
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:

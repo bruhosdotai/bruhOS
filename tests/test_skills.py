@@ -25,6 +25,17 @@ def test_bad_args_rejected():
         validate(SkillCall("wave", {"servo_7": 1500}))
 
 
+def test_bool_args_rejected():
+    # JSON booleans are not numbers or strings: bool is an int subclass in
+    # Python, so int(True)/float(True) would silently rewrite them to 1/1.0.
+    with pytest.raises(SkillError):
+        validate(SkillCall("follow_line", {"steps": True}))
+    with pytest.raises(SkillError):
+        validate(SkillCall("walk_toward", {"target": "box", "stop_distance_m": False}))
+    with pytest.raises(SkillError):
+        validate(SkillCall("walk_toward", {"target": True}))
+
+
 def test_defaults_filled():
     assert validate(SkillCall("kick")).args == {"foot": "right"}
     assert validate(SkillCall("walk_toward", {"target": "box"})).args["stop_distance_m"] == 0.1
