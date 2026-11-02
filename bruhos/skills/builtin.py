@@ -150,7 +150,8 @@ def release(ctx: SkillContext, args: dict) -> Outcome:
     if not ctx.body.act("release"):
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.FAILED, "hand empty")
-    return Outcome(Status.OK, f"released {before}", {"released": before})
+    obs = ctx.body.observe()
+    return _fallen(obs) or Outcome(Status.OK, f"released {before}", {"released": before})
 
 
 @skill(SkillSpec("kick", "Kick with the given foot.",

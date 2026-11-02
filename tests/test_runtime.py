@@ -38,6 +38,23 @@ def test_fall_mid_skill_recovers_and_resumes():
     assert ep.success and "in_box:red_block" in body.world.events
 
 
+def test_fall_on_release_is_not_reported_as_success():
+    class FallOnReleaseBody(SimBody):
+        def act(self, primitive):
+            ok = super().act(primitive)
+            if primitive == "release" and ok:
+                self.world.fallen, self.world.fell_forward = True, True
+            return ok
+
+    world = World.tabletop()
+    world.holding = world.get("red_block")
+    body = FallOnReleaseBody(world)
+    ep = Runtime(body, FixedPlanner([SkillCall("release")])).run("Release the red block.")
+    assert ep.steps[0].outcome["status"] == "fallen"
+    assert ep.falls >= 1 and ep.recoveries >= 1
+    assert not ep.success
+
+
 def test_unregistered_skill_from_brain_never_reaches_body():
     body = SimBody()
     ep = Runtime(body, FixedPlanner([SkillCall("wave"), SkillCall("moonwalk")])).run("Dance.")
