@@ -74,6 +74,7 @@ class ElizaBridgeBody(Body):
         self._halted = threading.Event()
         self._closed = threading.Event()
         self._lock = threading.Lock()
+        self._send_lock = threading.Lock()
         self._pending: dict[str, tuple[threading.Event, list[dict[str, Any]]]] = {}
         self._telemetry: dict[str, Any] = {}
         self._entities: list[dict[str, Any]] = []
@@ -127,10 +128,17 @@ class ElizaBridgeBody(Body):
         box: list[dict[str, Any]] = []
         self._pending[rid] = (done, box)
         try:
-            self.ws.send(json.dumps({
-                "type": "command", "request_id": rid, "timestamp": datetime.now(UTC).isoformat(),
-                "command": command, "payload": payload, "preempt": preempt,
-            }))
+            # A halt can arrive while a previous command is waiting for its response.
+            # Serialize admission with sends (including stop), not response waits.
+            with self._send_lock:
+                motion = command in {"action.play", "walk.set"} or (
+                    command == "walk.command" and payload.get("action") == "start")
+                if motion and self._halted.is_set():
+                    raise BridgeError(f"{command}: body halted")
+                self.ws.send(json.dumps({
+                    "type": "command", "request_id": rid, "timestamp": datetime.now(UTC).isoformat(),
+                    "command": command, "payload": payload, "preempt": preempt,
+                }))
             if not done.wait(self.timeout) or not box:
                 raise BridgeError(f"{command}: no response from bridge")
             return box[0]
