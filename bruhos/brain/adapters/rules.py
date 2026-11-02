@@ -54,10 +54,14 @@ class RulesPlanner(Planner):
             foot = "left" if has("left") else "right"
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
-            # A named block, box, or other non-ball is not a kick target. A bare
-            # kick still returns ok, so planning one would certify a miss.
-            if _target(s) is not None:
+            # A named block or box is not a kick target. A bare kick still
+            # returns ok, so planning one would certify a miss. A color alone
+            # ("the yellow one") is how walk_toward names the ball.
+            obj = _target(s)
+            if obj is not None and obj not in COLORS:
                 return []
+            if obj is not None:
+                return [_c("walk_toward", target=obj, stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
         if has("follow"):
             return [_c("follow_line")]

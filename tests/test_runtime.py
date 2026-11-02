@@ -121,3 +121,16 @@ def test_kick_of_a_named_non_ball_is_not_certified_success():
     kicked = SimBody()
     ball = Runtime(kicked, RulesPlanner()).run("Kick the ball.")
     assert ball.success and "kicked:yellow_ball" in kicked.world.events
+
+
+def test_kick_of_a_color_only_ball_still_lands():
+    """'Kick the yellow one.' names the ball by color and must still kick it."""
+    body = SimBody()
+    ball = body.world.get("yellow_ball")
+    assert ball is not None
+    ball.x, ball.y = 0.10, 0.0
+    ep = Runtime(body, RulesPlanner()).run("Kick the yellow one.")
+    assert ep.success, ep.end_reason
+    assert [c["skill"] for c in ep.plan] == ["walk_toward", "kick"]
+    assert ep.plan[0]["args"]["target"] == "yellow"
+    assert "kicked:yellow_ball" in body.world.events
