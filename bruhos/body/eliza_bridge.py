@@ -32,19 +32,40 @@ class BridgeError(RuntimeError):
     pass
 
 
+def _num(value: Any, default: float) -> float:
+    """Tolerant parse for external bridge telemetry.
+
+    ``to_detection`` runs over every field of every perception entity streamed in from the
+    bridge — untrusted, off-machine data. A malformed field must degrade to the default
+    instead of raising inside ``observe()`` and taking the runtime control loop down with
+    it. Non-finite values are malformed too: a NaN bearing or distance would silently
+    corrupt every plan for the frame.
+    """
+    if isinstance(value, bool):
+        return default
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return v if math.isfinite(v) else default
+
+
 def to_detection(entity: dict[str, Any]) -> Detection:
     """Bridge perception entity (robot frame: +x forward, +y left) -> bruhOS detection."""
+    if not isinstance(entity, dict):
+        return Detection(label="object")
     words = str(entity.get("label", "object")).lower().split()
     color = words[0] if len(words) > 1 and words[0] in COLORS else None
     label = "_".join(words[1:] if color else words) or "object"
-    x, y = float(entity.get("x", 0.0)), float(entity.get("y", 0.0))
+    x, y = _num(entity.get("x"), 0.0), _num(entity.get("y"), 0.0)
     dist = entity.get("distance")
+    fallback = math.hypot(x, y)
     return Detection(
         label=label,
         color=color,
         bearing_deg=round(math.degrees(math.atan2(y, x)), 1) if (x or y) else 0.0,
-        distance_m=round(float(dist), 3) if dist is not None else round(math.hypot(x, y), 3),
-        confidence=float(entity.get("confidence", 1.0)),
+        distance_m=round(_num(dist, fallback), 3) if dist is not None else round(fallback, 3),
+        confidence=_num(entity.get("confidence"), 1.0),
     )
 
 
