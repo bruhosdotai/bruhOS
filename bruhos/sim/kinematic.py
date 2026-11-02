@@ -82,6 +82,7 @@ class SimBody(Body):
         self.t = 0.0
         self.frame = 0
         self.n_locomotion = 0
+        self._line_correction = 0.0
         self._halted = threading.Event()
 
     def observe(self) -> Observation:
@@ -133,7 +134,13 @@ class SimBody(Body):
         r = math.radians(w.heading_deg)
         w.x += FORWARD_M * math.cos(r)
         w.y += FORWARD_M * math.sin(r)
-        w.line_m = max(0.0, w.line_m - FORWARD_M)
+        # Compensate repeated subtractions so roundoff cannot add a gait cycle.
+        delta = -FORWARD_M - self._line_correction
+        remaining = w.line_m + delta
+        self._line_correction = (remaining - w.line_m) - delta
+        w.line_m = max(0.0, remaining)
+        if w.line_m == 0.0:
+            self._line_correction = 0.0
         if w.holding:
             w.holding.x, w.holding.y = w.x, w.y
         return True
