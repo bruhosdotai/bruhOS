@@ -21,7 +21,8 @@ class Detection:
     def matches(self, target: str) -> bool:
         """`red_block`, `red`, `block`, `box` all resolve against label/color."""
         tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
-        have = {self.label.lower()} | ({self.color.lower()} if self.color else set())
+        have = set(self.label.lower().replace("-", "_").split("_"))
+        have |= {self.color.lower()} if self.color else set()
         return bool(tokens) and tokens <= have
 
 
