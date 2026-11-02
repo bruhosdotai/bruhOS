@@ -216,8 +216,10 @@ Brains must output this schema. The runtime is never changed to fit a checkpoint
 
 ## Trace and chain
 
-Each step is hashed over canonical JSON and chained to the previous step; the episode's
-`trace_root` is the Merkle root of the step hashes. Sinks (`LocalSink`, `IpfsSink`, `ChainSink`)
+Each step is hashed over canonical JSON and chained to the previous step, seeded by a digest of the
+episode header — so the outcome (`success`, `end_reason`, `falls`, `recoveries`, `plan`) is committed
+like the steps are. The episode's `trace_root` combines the Merkle root of the step hashes with that
+header digest. Sinks (`LocalSink`, `IpfsSink`, `ChainSink`)
 run on a background thread, so a slow or failing sink never blocks the control loop. What goes
 on-chain is `trace_root` plus the skillpack and brain version hashes — not video, not control.
 

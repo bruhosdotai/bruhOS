@@ -24,6 +24,36 @@ def test_roundtrip_and_tamper_detection(tmp_path):
     assert not verify_episode(loaded)
 
 
+def test_failed_run_marked_successful_is_detected():
+    ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
+    assert not ep.success and ep.end_reason == "no plan for instruction"
+    ep.success, ep.end_reason, ep.falls, ep.recoveries = True, "completed", 0, 0
+    assert not verify_episode(ep)
+
+
+def test_outcome_header_edits_are_detected():
+    ep = _episode()
+    ep.success = not ep.success
+    ep.falls += 1
+    ep.recoveries += 1
+    ep.plan = [{"skill": "wave", "args": {}}]
+    assert not verify_episode(ep)
+
+
+def test_empty_episodes_commit_their_own_header():
+    a = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
+    b = Runtime(SimBody(), RulesPlanner()).run("Do a somersault.")
+    assert a.steps == [] and b.steps == []
+    assert a.trace_root != b.trace_root
+
+
+def test_sealed_header_roundtrip_still_verifies(tmp_path):
+    ep = _episode()
+    d = LocalSink(tmp_path).emit(ep)["path"]
+    loaded = load_episode(d)
+    assert loaded.trace_root == ep.trace_root and verify_episode(loaded)
+
+
 def test_reorder_changes_root():
     ep = _episode()
     leaves = [s.hash for s in ep.steps]
