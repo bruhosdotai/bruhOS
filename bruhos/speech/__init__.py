@@ -20,6 +20,11 @@ class SpeechConfig:
     def __post_init__(self) -> None:
         if self.language != "en" and not self.allow_non_english:
             raise ValueError(f"bruhOS is English-first; language={self.language!r} needs allow_non_english=True")
+        # faster-whisper forces English on an English-only checkpoint, so other languages would be
+        # transcribed as English without any error.
+        if self.language.lower().replace("_", "-").split("-")[0] != "en" and self.asr_model.endswith(".en"):
+            raise ValueError(f"asr_model={self.asr_model!r} is English-only; language={self.language!r} "
+                             "needs a multilingual model (e.g. 'base')")
 
 
 class ASR(ABC):
