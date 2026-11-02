@@ -23,13 +23,25 @@ SUMMARY_FIELDS = (
 TRACE_ERRORS = (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError)
 
 
+def _is_linked(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    if hasattr(path, 'is_junction'):
+        return path.is_junction()
+    try:
+        import stat
+        return getattr(path.lstat(), 'st_reparse_tag', 0) == getattr(stat, 'IO_REPARSE_TAG_MOUNT_POINT', 0xA0000003)
+    except OSError:
+        return False
+
+
 def status_data(root):
     candidates, episodes = [], []
     skipped = 0
     # Sort small headers first; read/hash step histories only for the visible page.
     for path in Path(root).glob('*/episode.json'):
         try:
-            if path.parent.is_symlink() or path.is_symlink() or (path.parent / 'steps.jsonl').is_symlink():
+            if _is_linked(path.parent) or _is_linked(path) or _is_linked(path.parent / 'steps.jsonl'):
                 raise ValueError('Linked trace')
             header = json.loads(path.read_text())
             started = header['started_at']

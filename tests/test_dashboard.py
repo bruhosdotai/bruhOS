@@ -62,13 +62,34 @@ def test_latest_twelve_are_sorted_and_external_links_skipped(tmp_path):
         ep.episode_id = f'episode-{index}'
         ep.started_at = index
         TraceWriter(tmp_path).write(ep)
-    (tmp_path/'linked').symlink_to(tmp_path/'episode-0', target_is_directory=True)
+    try:
+        (tmp_path/'linked').symlink_to(tmp_path/'episode-0', target_is_directory=True)
+    except OSError:
+        import os
+        if os.name == 'nt':
+            import _winapi
+            _winapi.CreateJunction(str(tmp_path/'episode-0'), str(tmp_path/'linked'))
+        else:
+            raise
     from bruhos.dashboard import load_episode
     with patch('bruhos.dashboard.load_episode', wraps=load_episode) as loader:
         data = status_data(tmp_path)
     assert loader.call_count == 12
     assert all('plan' not in e for e in data['episodes'])
     assert [e['started_at'] for e in data['episodes']] == list(range(13, 1, -1))
+    assert data['skipped'] == 1
+
+
+def test_windows_junctions_skipped(tmp_path):
+    import os
+    if os.name != 'nt':
+        pytest.skip('Directory junctions are specific to Windows nt')
+    import _winapi
+    ep = Runtime(SimBody(), make_planner('rules')).run('Wave hello.')
+    TraceWriter(tmp_path).write(ep)
+    _winapi.CreateJunction(str(tmp_path/ep.episode_id), str(tmp_path/'junction_link'))
+    data = status_data(tmp_path)
+    assert len(data['episodes']) == 1
     assert data['skipped'] == 1
 
 
