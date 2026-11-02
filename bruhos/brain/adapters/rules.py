@@ -66,6 +66,12 @@ class RulesPlanner(Planner):
         if has("pick up", "grab", "take", "get", "hold") and obj:
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
+            # Walking to an object cannot transport it: if the instruction
+            # also names a box destination for a different object, walking
+            # to the object would silently drop the destination and report
+            # success, so such an instruction gets no plan instead.
+            if into_box and obj != "box":
+                return []
             return [_c("walk_toward", target=obj)]
         if has("look", "face", "turn") and obj:
             return [_c("look_at", target=obj)]
