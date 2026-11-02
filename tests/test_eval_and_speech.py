@@ -44,3 +44,10 @@ def test_shipped_configs_are_english(cfg):
         speech = tomllib.load(f)["speech"]
     SpeechConfig(**speech)
     assert speech["language"] == "en"
+
+
+@pytest.mark.parametrize("lang", ["en-US", "en-GB", "en_US", "en-au", "EN-CA"])
+def test_english_variants_accepted_without_allow_non_english(lang):
+    cfg = SpeechConfig(language=lang)
+    assert cfg.language == "en"
+
