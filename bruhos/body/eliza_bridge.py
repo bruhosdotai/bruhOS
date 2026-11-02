@@ -11,6 +11,7 @@ so walking primitives re-send ``walk.set`` while they run.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import threading
@@ -27,9 +28,24 @@ WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
 COLORS = {"red", "green", "blue", "yellow", "orange", "purple", "black", "white", "pink"}
 TOKEN_ENV = "ELIZA_AINEX_BRIDGE_AUTH_TOKEN"
 
+log = logging.getLogger(__name__)
+
 
 class BridgeError(RuntimeError):
     pass
+
+
+def parse_frame(raw: str | bytes) -> dict[str, Any] | None:
+    """One bridge frame as a JSON object, or None for anything else (non-JSON, array, scalar).
+
+    A bad frame is the peer's problem, not a reason to stop reading: the reader thread must keep
+    delivering telemetry, or the body goes blind to the next fall while still answering observe().
+    """
+    try:
+        msg = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return msg if isinstance(msg, dict) else None
 
 
 def to_detection(entity: dict[str, Any]) -> Detection:
@@ -98,7 +114,10 @@ class ElizaBridgeBody(Body):
     def _read(self) -> None:
         try:
             for raw in self.ws:
-                msg = json.loads(raw)
+                msg = parse_frame(raw)
+                if msg is None:
+                    log.warning("eliza bridge: ignoring malformed frame (%d bytes)", len(raw))
+                    continue
                 if msg.get("type") == "response":
                     slot = self._pending.get(msg.get("request_id", ""))
                     if slot:
