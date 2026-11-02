@@ -91,7 +91,14 @@ class OpenAICompatPlanner(Planner):
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         raw = self.transport(f"{self.base_url}/chat/completions", headers, json.dumps(payload).encode(), self.timeout)
-        content = json.loads(raw)["choices"][0]["message"]["content"]
+        try:
+            content = json.loads(raw)["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            # A response without a chat choice is not a plan: raise ValueError so the
+            # runtime records a rejected step instead of a bare "brain error" with no
+            # step at all (an error payload, empty choices, or a choice without
+            # content all land here; invalid JSON already raises ValueError).
+            raise ValueError("brain response has no chat choice content") from e
         return parse_plan(content)
 
     def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
