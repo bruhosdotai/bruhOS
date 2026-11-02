@@ -96,21 +96,37 @@ class SinkDispatcher:
         self.sinks = sinks
         self.receipts: list[tuple[str, str, dict[str, Any] | str]] = []
         self._q: queue.Queue[Episode | None] = queue.Queue()
+        self._closed = False
+        self._lifecycle = threading.Lock()   # guards the closed flag against enqueue
         self._t = threading.Thread(target=self._run, name="bruhos-sinks", daemon=True)
         self._t.start()
 
     def submit(self, ep: Episode) -> None:
-        self._q.put(ep)
+        # Check-and-enqueue is one step against close(): if close() slipped in
+        # between them the episode would land behind the sentinel, after the
+        # consumer exited -- no file, no receipt, flush() False. Only admission
+        # is serialized; sink emission still happens outside this lock.
+        with self._lifecycle:
+            if self._closed:
+                raise RuntimeError("SinkDispatcher is closed; episode not queued")
+            self._q.put(ep)
 
     def _run(self) -> None:
-        while (ep := self._q.get()) is not None:
-            for s in self.sinks:
-                try:
-                    self.receipts.append((ep.episode_id, s.name, s.emit(ep)))
-                except Exception as e:  # a failing sink must never take down the runtime
-                    log.warning("sink %s failed for %s: %s", s.name, ep.episode_id, e)
-                    self.receipts.append((ep.episode_id, s.name, f"error: {e}"))
-            self._q.task_done()
+        while True:
+            ep = self._q.get()
+            try:
+                if ep is None:
+                    return
+                for s in self.sinks:
+                    try:
+                        self.receipts.append((ep.episode_id, s.name, s.emit(ep)))
+                    except Exception as e:  # a failing sink must never take down the runtime
+                        log.warning("sink %s failed for %s: %s", s.name, ep.episode_id, e)
+                        self.receipts.append((ep.episode_id, s.name, f"error: {e}"))
+            finally:
+                # Also for the sentinel: otherwise unfinished_tasks never reaches zero
+                # and flush() after close() waits forever.
+                self._q.task_done()
 
     def flush(self, timeout: float | None = None) -> bool:
         done = threading.Event()
@@ -118,4 +134,8 @@ class SinkDispatcher:
         return done.wait(timeout)
 
     def close(self) -> None:
-        self._q.put(None)
+        with self._lifecycle:
+            if self._closed:
+                return
+            self._closed = True
+            self._q.put(None)
