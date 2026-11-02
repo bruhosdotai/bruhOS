@@ -56,7 +56,12 @@ class RulesPlanner(Planner):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
         if has("follow"):
-            return [_c("follow_line")]
+            # Only the floor line (the world's tape) is followable: "follow
+            # the red block" or "follow me" must not claim line-following,
+            # since the skill set has no follow-object primitive. Anything
+            # else falls through to no plan.
+            if has("line", "tape"):
+                return [_c("follow_line")]
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
