@@ -56,16 +56,24 @@ def cmd_run(a: argparse.Namespace) -> int:
     cfg = _load_config(a.config)
     SpeechConfig(**cfg.get("speech", {}))
     body = _body(a.body, cfg, a.fall_prob, a.seed)
-    sinks = SinkDispatcher([LocalSink(a.traces or cfg.get("trace", {}).get("root", "traces"))])
-    rt = Runtime(body, _brain(a.brain, cfg), sinks)
+    sinks = None
     try:
-        ep = rt.run(a.instruction)
-    except KeyboardInterrupt:
-        rt.stop()
-        return 130
+        sinks = SinkDispatcher([LocalSink(a.traces or cfg.get("trace", {}).get("root", "traces"))])
+        rt = Runtime(body, _brain(a.brain, cfg), sinks)
+        try:
+            ep = rt.run(a.instruction)
+        except KeyboardInterrupt:
+            rt.stop()
+            return 130
     finally:
-        sinks.flush(5)
-        body.close()
+        try:
+            if sinks is not None:
+                try:
+                    sinks.flush(5)
+                finally:
+                    sinks.close()
+        finally:
+            body.close()
     for s in ep.steps:
         o = s.outcome
         args = ", ".join(f"{k}={v}" for k, v in s.call["args"].items())
