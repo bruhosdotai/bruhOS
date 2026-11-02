@@ -87,11 +87,15 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
+            if self._halted.is_set():       # halted while the previous primitive held the lock
+                return False
             kw = {"path": self.action_path} if self.action_path else {}
             try:
                 self.agc.runActionGroup(group, **kw)
             except TypeError:
                 self.agc.runActionGroup(group)
+            if self._halted.is_set():       # halt() stopped the group part-way: it did not complete
+                return False
         if primitive == "grab":
             self.holding = "object"
         elif primitive == "release":
