@@ -26,6 +26,7 @@ from bruhos.schemas import Detection, Imu, Observation
 WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
 COLORS = {"red", "green", "blue", "yellow", "orange", "purple", "black", "white", "pink"}
 TOKEN_ENV = "ELIZA_AINEX_BRIDGE_AUTH_TOKEN"
+HALT_TIMEOUT_S = 0.25      # an emergency stop must land well inside the 1 s bridge deadman
 
 
 class BridgeError(RuntimeError):
@@ -121,7 +122,8 @@ class ElizaBridgeBody(Body):
             for done, _ in list(self._pending.values()):
                 done.set()
 
-    def _send(self, command: str, payload: dict[str, Any], preempt: bool = False) -> dict[str, Any]:
+    def _send(self, command: str, payload: dict[str, Any], preempt: bool = False,
+              timeout: float | None = None) -> dict[str, Any]:
         rid = str(uuid.uuid4())
         done: threading.Event = threading.Event()
         box: list[dict[str, Any]] = []
@@ -131,7 +133,7 @@ class ElizaBridgeBody(Body):
                 "type": "command", "request_id": rid, "timestamp": datetime.now(UTC).isoformat(),
                 "command": command, "payload": payload, "preempt": preempt,
             }))
-            if not done.wait(self.timeout) or not box:
+            if not done.wait(self.timeout if timeout is None else timeout) or not box:
                 raise BridgeError(f"{command}: no response from bridge")
             return box[0]
         finally:
@@ -212,8 +214,14 @@ class ElizaBridgeBody(Body):
         self._halted.set()
         if not self._closed.is_set():
             try:
-                self._send("walk.command", {"action": "stop"}, preempt=True)
-            except BridgeError:
+                # The bridge deadman stops motion after 1 s without a command, so waiting out
+                # the full timeout here would leave the robot walking past it. Confirm delivery,
+                # but never for longer than the deadman window.
+                self._send("walk.command", {"action": "stop"}, preempt=True,
+                           timeout=min(self.timeout, HALT_TIMEOUT_S))
+            except Exception:
+                # Deliberately wider than BridgeError: ws.send on a dying socket raises
+                # ConnectionClosed, and an emergency stop must never raise out of Runtime.stop.
                 pass
 
     def resume(self) -> None:
