@@ -87,6 +87,9 @@ class Runtime:
         return plan
 
     def _run(self, ep: Episode) -> None:
+        if self._stop.is_set():
+            ep.end_reason = "stopped"
+            return
         obs = self.body.observe()
         if obs.imu.fallen:
             obs = self._recover(ep, obs)
