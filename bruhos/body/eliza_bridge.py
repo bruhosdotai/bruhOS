@@ -142,8 +142,24 @@ class ElizaBridgeBody(Body):
             resp = self._send("profile.describe", {})
         except BridgeError:
             return {}
-        groups = resp.get("data", {}).get("profile", {}).get("actions", {}).get("groups", {})
-        return {k: float(v.get("duration_s", 1.0)) for k, v in groups.items() if isinstance(v, dict)}
+        groups: Any = resp
+        for key in ("data", "profile", "actions", "groups"):
+            groups = groups.get(key) if isinstance(groups, dict) else None
+        if not isinstance(groups, dict):
+            return {}
+        # _play waits this long before reporting the action done, so only a finite, positive number
+        # is usable. Anything else (Infinity would block forever, NaN/<=0 would report completion while
+        # the robot is still moving) falls back to the default in _play.
+        out: dict[str, float] = {}
+        for name, group in groups.items():
+            raw = group.get("duration_s", 1.0) if isinstance(group, dict) else None
+            try:
+                seconds = float(raw) if not isinstance(raw, bool) else math.nan
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if math.isfinite(seconds) and seconds > 0:
+                out[name] = seconds
+        return out
 
     def observe(self) -> Observation:
         self.frame += 1
