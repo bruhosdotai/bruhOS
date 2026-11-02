@@ -146,5 +146,8 @@ class Runtime:
             outcome = run_skill(self.ctx, call)
             after = self.body.observe()
             self._record(ep, "recovery", call, outcome, obs, after)
+            if outcome.status is Status.STOPPED:
+                ep.end_reason = "stopped"
+                return None
             obs = after
         return obs

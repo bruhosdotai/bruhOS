@@ -173,9 +173,13 @@ def stand_up(ctx: SkillContext, args: dict) -> Outcome:
     obs = ctx.body.observe()
     if not obs.imu.fallen:
         return Outcome(Status.OK, "already standing")
+    if ctx.should_stop():
+        return Outcome(Status.STOPPED, "stop requested")
     front = obs.imu.fell_forward
     order = ["stand_up_front", "stand_up_back"] if front is not False else ["stand_up_back", "stand_up_front"]
     for prim in order:
+        if ctx.should_stop():
+            return Outcome(Status.STOPPED, "stop requested")
         ctx.body.act(prim)
         obs = ctx.body.observe()
         if not obs.imu.fallen:
