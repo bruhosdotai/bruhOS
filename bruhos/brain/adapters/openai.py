@@ -9,7 +9,7 @@ import urllib.request
 from typing import Any, Callable
 
 from bruhos._net import require_secure
-from bruhos.brain.base import Planner, parse_plan
+from bruhos.brain.base import IntegrationError, Planner, parse_plan
 from bruhos.schemas import Observation, SkillCall
 
 SYSTEM_PROMPT = """You are the planner of bruhOS, a skill operating system on a small humanoid robot.
@@ -49,6 +49,38 @@ def http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) ->
     if len(data) > MAX_RESPONSE_BYTES:
         raise ValueError(f"brain response larger than {MAX_RESPONSE_BYTES} bytes")
     return data
+
+
+def completion_content(raw: bytes, model: str) -> str:
+    """Pull the assistant text out of an OpenAI-compatible reply, or say why not.
+
+    A 200 does not imply a completion: gateways and vLLM answer with
+    ``{"detail": ...}`` on an upstream error, a tool-call-only or length-capped
+    reply carries ``content: null`` or ``""``, and a proxy can return an empty
+    ``choices`` list. Reading the envelope as ``["choices"][0]["message"]
+    ["content"]`` turned each of those into ``KeyError('choices')`` (or
+    ``ValueError: plan must be a list, got NoneType``), which ``Runtime`` reports
+    as ``brain error: 'choices'`` or, worse, as a rejected plan -- a policy
+    violation the brain never committed. Name the failure here instead.
+    """
+    where = f"brain {model!r}"
+    try:
+        body = json.loads(raw)
+    except ValueError as e:
+        raise IntegrationError(f"{where} returned a body that is not JSON ({e}): {raw[:200]!r}") from e
+    if not isinstance(body, dict):
+        raise IntegrationError(f"{where} returned {type(body).__name__}, not a completion object")
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        detail = body.get("detail") or body.get("error") or body
+        raise IntegrationError(f"{where} answered without any choices (body: {str(detail)[:200]})")
+    first = choices[0] if isinstance(choices[0], dict) else {}
+    message = first.get("message") if isinstance(first.get("message"), dict) else {}
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise IntegrationError(
+            f"{where} returned no content (finish_reason={first.get('finish_reason')!r})")
+    return content
 
 
 class OpenAICompatPlanner(Planner):
@@ -91,7 +123,7 @@ class OpenAICompatPlanner(Planner):
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         raw = self.transport(f"{self.base_url}/chat/completions", headers, json.dumps(payload).encode(), self.timeout)
-        content = json.loads(raw)["choices"][0]["message"]["content"]
+        content = completion_content(raw, self.model)
         return parse_plan(content)
 
     def plan(self, instruction: str, obs: Observation, catalog: list[dict[str, Any]]) -> list[SkillCall]:
