@@ -16,6 +16,10 @@ class SkillError(ValueError):
     pass
 
 
+class _BudgetExceeded(SkillError):
+    pass
+
+
 @dataclass(frozen=True)
 class Arg:
     type: type
@@ -51,6 +55,14 @@ class SkillContext:
     body: Body
     should_stop: Callable[[], bool] = lambda: False
     max_steps: int = 120
+    _steps: int = field(default=0, init=False)
+
+    def act(self, primitive: str) -> bool:
+        """Count every attempted primitive against this skill invocation's budget."""
+        if self._steps >= self.max_steps:
+            raise _BudgetExceeded("primitive step budget exhausted")
+        self._steps += 1
+        return self.body.act(primitive)
 
 
 SkillFn = Callable[[SkillContext, dict[str, Any]], Outcome]
@@ -100,7 +112,11 @@ def run_skill(ctx: SkillContext, call: SkillCall) -> Outcome:
     call = validate(call)
     if ctx.should_stop() and call.skill != "stop":
         return Outcome(Status.STOPPED, "stop requested")
-    return _IMPL[call.skill](ctx, call.args)
+    ctx._steps = 0
+    try:
+        return _IMPL[call.skill](ctx, call.args)
+    except _BudgetExceeded as e:
+        return Outcome(Status.FAILED, str(e))
 
 
 def catalog() -> list[dict[str, Any]]:
