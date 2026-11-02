@@ -80,6 +80,13 @@ class TonyPiBody(Body):
         return Observation(t=round(time.monotonic(), 3), frame=self.frame, objects=objects,
                            imu=imu, line=line, holding=self.holding)
 
+    def _run_group(self, group: str) -> None:
+        kw = {"path": self.action_path} if self.action_path else {}
+        try:
+            self.agc.runActionGroup(group, **kw)
+        except TypeError:
+            self.agc.runActionGroup(group)
+
     def act(self, primitive: str) -> bool:
         if self._halted.is_set():
             return False
@@ -87,11 +94,7 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
-            kw = {"path": self.action_path} if self.action_path else {}
-            try:
-                self.agc.runActionGroup(group, **kw)
-            except TypeError:
-                self.agc.runActionGroup(group)
+            self._run_group(group)
         if primitive == "grab":
             self.holding = "object"
         elif primitive == "release":
@@ -104,7 +107,7 @@ class TonyPiBody(Body):
         if stop:
             stop()
         if self.actions.get("stand"):
-            threading.Thread(target=self.agc.runActionGroup, args=(self.actions["stand"],), daemon=True).start()
+            threading.Thread(target=self._run_group, args=(self.actions["stand"],), daemon=True).start()
 
     def resume(self) -> None:
         self._halted.clear()
