@@ -8,6 +8,7 @@ firmware images, so the mapping lives in ``configs/tonypi*.toml`` — check them
 from __future__ import annotations
 
 import importlib
+import inspect
 import sys
 import threading
 import time
@@ -31,6 +32,21 @@ def _load_agc(sdk_path: str | None):
     raise ImportError("Hiwonder ActionGroupControl not found; set [body].sdk_path. Tried: " + "; ".join(errors))
 
 
+def _takes_path(fn) -> bool | None:
+    """Whether ``runActionGroup`` accepts ``path=``, decided from the signature, never by calling it:
+    a retry after an arbitrary TypeError would replay an action group the servos may already be running.
+    ``None`` when the function cannot be introspected (e.g. a C or ctypes wrapper)."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return None
+    return any(p.name == "path" or p.kind is p.VAR_KEYWORD for p in params)
+
+
+# CPython raises these while binding arguments, before the function body runs, so nothing has moved.
+_KWARG_REJECTED = ("unexpected keyword argument", "takes no keyword arguments")
+
+
 class TonyPiBody(Body):
     name = "tonypi"
 
@@ -41,6 +57,8 @@ class TonyPiBody(Body):
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
+        # True / False from the signature; None = not introspectable, resolved on the first call
+        self._path_kw = _takes_path(self.agc.runActionGroup) if self.action_path else False
         self._lock = threading.Lock()
         self._halted = threading.Event()
         self.frame = 0
@@ -87,10 +105,20 @@ class TonyPiBody(Body):
         if not group:
             return False
         with self._lock:
-            kw = {"path": self.action_path} if self.action_path else {}
-            try:
-                self.agc.runActionGroup(group, **kw)
-            except TypeError:
+            if self._path_kw is None:
+                # Not introspectable: try path= once. Only a keyword-binding TypeError (nothing ran) is
+                # retried without it; any other TypeError propagates, so no action group is replayed.
+                try:
+                    self.agc.runActionGroup(group, path=self.action_path)
+                    self._path_kw = True
+                except TypeError as e:
+                    if not any(m in str(e) for m in _KWARG_REJECTED):
+                        raise
+                    self._path_kw = False
+                    self.agc.runActionGroup(group)
+            elif self._path_kw:
+                self.agc.runActionGroup(group, path=self.action_path)
+            else:
                 self.agc.runActionGroup(group)
         if primitive == "grab":
             self.holding = "object"
