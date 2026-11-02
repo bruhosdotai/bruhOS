@@ -12,7 +12,7 @@ from bruhos.body.base import Body
 from bruhos.brain.adapters.openai import OpenAICompatPlanner
 from bruhos.brain.adapters.qwen_vl import QwenVLPlanner
 from bruhos.dashboard import Handler
-from bruhos.schemas import Imu, LineReading, Observation, SkillCall, Status
+from bruhos.schemas import Detection, Imu, LineReading, Observation, SkillCall, Status
 from bruhos.skills import SkillContext, SkillError, run_skill, validate
 
 
@@ -41,6 +41,34 @@ def test_follow_line_is_bounded_by_the_step_budget():
     out = run_skill(SkillContext(body, max_steps=50), SkillCall("follow_line", {"steps": 10**9}))
     assert out.status is Status.FAILED
     assert body.acts == 50
+
+
+class NoRangeBody(Body):
+    """Sees the target dead ahead but has no range to it (a detector without a known object size)."""
+
+    name = "no_range"
+    turn_step_deg = 15.0
+
+    def __init__(self):
+        self.acts = []
+
+    def observe(self):
+        return Observation(t=0, frame=0, objects=[Detection("face", bearing_deg=0.0, distance_m=None)], imu=Imu())
+
+    def act(self, primitive):
+        self.acts.append(primitive)
+        return True
+
+    def halt(self):
+        pass
+
+
+def test_walk_toward_refuses_to_walk_blind_without_range():
+    body = NoRangeBody()
+    out = run_skill(SkillContext(body, max_steps=30), SkillCall("walk_toward", {"target": "face"}))
+    assert out.status is Status.FAILED
+    assert "no range" in out.detail
+    assert body.acts == []                 # not a single forward step toward a target it cannot range
 
 
 @pytest.mark.parametrize("bad", ["nan", "inf", "-inf", float("nan")])
