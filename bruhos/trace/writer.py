@@ -15,18 +15,18 @@ class TraceWriter:
     def write(self, ep: Episode) -> Path:
         d = self.root / ep.episode_id
         d.mkdir(parents=True, exist_ok=True)
-        with (d / "steps.jsonl").open("w") as f:
+        with (d / "steps.jsonl").open("w", encoding="utf-8") as f:
             for s in ep.steps:
                 f.write(json.dumps(s.to_dict(), sort_keys=True) + "\n")
-        (d / "episode.json").write_text(json.dumps(ep.header(), indent=2, sort_keys=True) + "\n")
+        (d / "episode.json").write_text(json.dumps(ep.header(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return d
 
 
 def load_episode(path: str | Path) -> Episode:
     d = Path(path)
-    h = json.loads((d / "episode.json").read_text())
+    h = json.loads((d / "episode.json").read_text(encoding="utf-8"))
     steps = []
-    with (d / "steps.jsonl").open() as f:
+    with (d / "steps.jsonl").open(encoding="utf-8") as f:
         for line in f:
             s = json.loads(line)
             steps.append(Step(index=s["index"], t=s["t"], call=s["call"], outcome=s["outcome"],
