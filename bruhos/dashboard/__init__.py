@@ -20,7 +20,8 @@ SUMMARY_FIELDS = (
     'episode_id', 'instruction', 'body', 'brain', 'started_at', 'success',
     'end_reason', 'recoveries', 'trace_root', 'n_steps',
 )
-TRACE_ERRORS = (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError)
+TRACE_ERRORS = (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError,
+                RecursionError)  # RecursionError: a deeply nested episode.json escapes json.loads
 
 
 def status_data(root):
