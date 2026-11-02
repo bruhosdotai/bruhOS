@@ -55,10 +55,41 @@ class Outcome:
 _CALL = re.compile(r"^\s*([a-z_][a-z0-9_]*)\s*(?:\((.*)\))?\s*$")
 
 
+def _split_arguments(inner: str) -> list[str]:
+    """Split only outside a quoted value; bare names may contain apostrophes."""
+    parts: list[str] = []
+    start, quote, escaped = 0, None, False
+    value_start, named = True, False
+    for i, char in enumerate(inner):
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif char in "'\"" and value_start:
+            quote = char
+            value_start = False
+        elif char == ",":
+            parts.append(inner[start:i].strip())
+            start = i + 1
+            value_start, named = True, False
+        elif char == "=" and not named:
+            named, value_start = True, True
+        elif not char.isspace():
+            value_start = False
+    if quote is not None:
+        raise ValueError("unterminated quoted skill argument")
+    parts.append(inner[start:].strip())
+    return parts
+
+
 def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall:
     """Parse planner shorthand such as ``walk_toward(red_block)`` or ``kick(foot=left)``.
 
     ``positional`` maps a skill name to the argument name used for a bare value.
+    Separators inside a quoted value are data, not additional arguments.
     """
     m = _CALL.match(text)
     if not m:
@@ -66,8 +97,8 @@ def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall
     name, inner = m.group(1), (m.group(2) or "").strip()
     args: dict[str, Any] = {}
     if inner:
-        for part in (p.strip() for p in inner.split(",")):
-            if "=" in part:
+        for part in _split_arguments(inner):
+            if "=" in part and not part.startswith(("'", '"')):
                 k, v = (s.strip() for s in part.split("=", 1))
             else:
                 k = (positional or {}).get(name)
