@@ -81,6 +81,16 @@ class Runtime:
             return None
         except Exception as e:
             log.exception("brain failed")
+            # A brain that disappears mid-episode (cloud timeout, server gone) must not
+            # leave the episode untraced or the body free to keep moving: record the
+            # failure like any other rejected plan and stop the runtime. stop() both
+            # halts the body and sets the stop latch, so a later run() on this runtime
+            # ends immediately as "stopped" instead of planning normally and then
+            # burning its step budget against a halted body; moving again requires an
+            # explicit reset_stop().
+            self._record(ep, "rejected", SkillCall("plan", {"error": type(e).__name__}),
+                         Outcome(Status.REJECTED, str(e)), obs, None)
+            self.stop()
             ep.end_reason = f"brain error: {e}"
             return None
         ep.plan.extend(c.to_dict() for c in plan)
