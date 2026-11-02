@@ -220,6 +220,8 @@ class ElizaBridgeBody(Body):
                 self._send("walk.command", {"action": "stop"}, preempt=True,
                            timeout=min(self.timeout, HALT_TIMEOUT_S))
             except Exception:
+                # Deliberately wider than BridgeError: ws.send on a dying socket raises
+                # ConnectionClosed, and an emergency stop must never raise out of Runtime.stop.
                 pass
 
     def resume(self) -> None:
