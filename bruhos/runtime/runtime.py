@@ -125,6 +125,9 @@ class Runtime:
                     return
                 replans += 1
                 history = [{"call": s.call, "outcome": s.outcome} for s in ep.steps if s.kind != "rejected"]
+                abandoned = len(plan) - 1 - i
+                if abandoned > 0:
+                    del ep.plan[-abandoned:]
                 new = self._plan(ep, after, history)
                 if not new:
                     ep.end_reason = ep.end_reason or f"{call.skill} failed: {outcome.detail}"
