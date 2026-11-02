@@ -52,7 +52,13 @@ def validate_prompt(p: Any, index: int) -> dict[str, Any]:
 
 def load_prompts(path: str | Path = PROMPTS) -> list[dict[str, Any]]:
     with open(path, "rb") as f:
-        prompts = tomllib.load(f).get("prompt", [])
+        data = tomllib.load(f)
+    if "prompt" not in data:
+        # A typo such as [[prompts]] must not load as an empty evaluation that silently runs nothing.
+        raise ValueError(f"{path}: no [[prompt]] table found (keys: {sorted(data)})")
+    prompts = data["prompt"]
+    if not isinstance(prompts, list):
+        raise ValueError(f"{path}: prompt must be an array of tables, got {type(prompts).__name__}")
     return [validate_prompt(p, i) for i, p in enumerate(prompts)]
 
 

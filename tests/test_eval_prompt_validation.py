@@ -60,6 +60,24 @@ def test_load_prompts_validates_the_file(tmp_path):
         load_prompts(bad)
 
 
+def test_missing_prompt_table_is_rejected_not_emptied(tmp_path):
+    """Raised in review: a [[prompts]] typo must raise, not load as zero prompts."""
+    typo = tmp_path / "typo.toml"
+    typo.write_text('[[prompts]]\ntext = "Wave hello."\nexpect = ["event:wave"]\n')
+    with pytest.raises(ValueError, match=r"no \[\[prompt\]\] table.*prompts"):
+        load_prompts(typo)
+    scalar = tmp_path / "scalar.toml"
+    scalar.write_text('prompt = "Wave hello."\n')
+    with pytest.raises(ValueError, match="array of tables"):
+        load_prompts(scalar)
+
+
+def test_explicitly_empty_prompt_array_still_loads(tmp_path):
+    empty = tmp_path / "empty.toml"
+    empty.write_text("prompt = []\n")
+    assert load_prompts(empty) == []
+
+
 def test_valid_overrides_still_run():
     report = run_eval(RulesPlanner, prompts=[
         {"text": "Stand up.", "expect": ["event:stood_up", "success"], "world": {"fallen": True, "fell_forward": False}},
