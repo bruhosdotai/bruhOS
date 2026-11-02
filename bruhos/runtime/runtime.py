@@ -56,6 +56,10 @@ class Runtime:
         )
         try:
             self._run(ep)
+        except Exception as e:
+            ep.success = False
+            ep.end_reason = f"runtime error: {type(e).__name__}"
+            raise
         finally:
             ep.ended_at = time.time()
             seal(ep)
