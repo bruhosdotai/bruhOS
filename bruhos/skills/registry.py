@@ -84,6 +84,15 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        if v is None:
+            # JSON null means "not specified", not a value to coerce: str(None)
+            # would otherwise become the phantom target "None". Required args
+            # must carry a real value; optional args fall back to absent.
+            if a.required:
+                raise SkillError(f"{call.skill}.{k}: must not be null")
+            if a.default is not None:
+                out[k] = a.default
+            continue
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:
