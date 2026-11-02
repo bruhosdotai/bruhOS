@@ -160,6 +160,9 @@ class ElizaBridgeBody(Body):
         if self._halted.is_set() or self._closed.is_set():
             return False
         with self._lock:
+            # A halt or close can arrive while another action owns the lock.
+            if self._halted.is_set() or self._closed.is_set():
+                return False
             self._deadman.clear()
             try:
                 ok = self._walk(primitive) if primitive in WALK_PRIMITIVES else self._play(primitive)
