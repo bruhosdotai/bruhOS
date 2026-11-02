@@ -37,6 +37,28 @@ def test_shorthand_parse():
     assert parse_call("detect", pos) == SkillCall("detect", {})
 
 
+def test_shorthand_rejects_extra_positional():
+    """A second bare value used to silently overwrite the first: walk_toward(red_block, 0.2)
+    parsed to target='0.2', so the robot searched for an object literally named '0.2' and the
+    plan failed after a full scan. Extra values must be named explicitly or the plan is rejected.
+    """
+    pos = positional_args()
+    assert parse_call("walk_toward(red_block, stop_distance_m=0.2)", pos) == \
+        SkillCall("walk_toward", {"target": "red_block", "stop_distance_m": 0.2})
+    with pytest.raises(ValueError, match="one positional"):
+        parse_call("walk_toward(red_block, 0.2)", pos)
+    with pytest.raises(ValueError, match="one positional"):
+        parse_call("follow_line(10, 20)", pos)
+
+
+def test_shorthand_rejects_duplicate_arg():
+    pos = positional_args()
+    with pytest.raises(ValueError, match="twice"):
+        parse_call("walk_toward(red_block, target=box)", pos)
+    with pytest.raises(ValueError, match="twice"):
+        parse_call("kick(foot=left, foot=right)", pos)
+
+
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
