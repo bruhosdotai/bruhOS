@@ -25,11 +25,17 @@ def step_hash(step: Step, prev: str) -> str:
 def merkle_root(leaves: list[str]) -> str:
     """Merkle root of the step hashes.
 
-    Odd nodes are promoted, never duplicated, and the leaf count is folded into
-    the root. Duplicating the trailing leaf made ``[a, b, c]`` and
-    ``[a, b, c, c]`` hash to the same root, so a ``trace_root`` did not commit
-    to a unique step list (the CVE-2012-2459 class of ambiguity).
-    """
+`trace_root` has to commit to one exact step list. Duplicating the trailing odd
+node (the pre-fix behaviour) made `[a, b, c]` and `[a, b, c, c]` hash to the same
+root, so a bare root -- the value `ChainSink` anchors and `IpfsSink` pins -- did
+not pin the length of the trace. The local verifier was never forgeable that way,
+because `verify_episode` recomputes every chained `step_hash`; the gap is in the
+commitment itself, for whoever holds only the root.
+
+So: odd nodes are promoted, never duplicated, and the leaf count is folded into
+the final hash. An empty trace is `sha256(b"\\x00")`, distinct from any tree and
+from `sha256(b"")`.
+"""
     if not leaves:
         return sha256_hex(b"\x00")
     level = [bytes.fromhex(h) for h in leaves]
