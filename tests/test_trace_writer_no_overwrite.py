@@ -39,11 +39,31 @@ def test_different_episode_with_same_id_is_refused_and_first_trace_survives(tmp_
     assert verify_episode(saved)
 
 
+def test_zero_step_episodes_share_a_root_but_are_still_refused(tmp_path):
+    """Raised in review: every zero-step episode seals to the empty Merkle root, so root equality
+    must not be taken as identity. Two different 'no plan' episodes with one id -> refuse."""
+    first = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
+    second = Runtime(SimBody(), RulesPlanner()).run("Fly to the moon.")
+    assert first.end_reason == second.end_reason == "no plan for instruction"
+    second.episode_id = first.episode_id
+    seal(second)
+    assert first.trace_root == second.trace_root and first.header() != second.header()
+    writer = TraceWriter(tmp_path)
+    path = writer.write(first)
+    original = (path / "episode.json").read_bytes()
+    with pytest.raises(FileExistsError, match=first.episode_id):
+        writer.write(second)
+    assert (path / "episode.json").read_bytes() == original
+    assert load_episode(path).instruction == "Do a backflip."
+
+
 def test_rewriting_the_same_sealed_episode_is_idempotent(tmp_path):
     ep = Runtime(SimBody(), RulesPlanner()).run("Wave hello.")
     writer = TraceWriter(tmp_path)
     assert writer.write(ep) == writer.write(ep)
     assert verify_episode(load_episode(tmp_path / ep.episode_id))
+    empty = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")       # zero steps, empty root
+    assert writer.write(empty) == writer.write(empty)
 
 
 def test_local_sink_reports_the_refusal_as_an_error_receipt(tmp_path):
