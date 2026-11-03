@@ -6,6 +6,7 @@ import json
 import logging
 import queue
 import threading
+import urllib.error
 import urllib.request
 import uuid
 from abc import ABC, abstractmethod
@@ -38,6 +39,22 @@ class LocalSink(Sink):
         return {"path": str(self.writer.write(ep))}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect, as SECURITY.md requires and as the brain transport already does.
+
+    Kubo answers ``add`` with a JSON body, so a redirected call would return some other endpoint's
+    ``Hash`` as this episode's CID: the anchor would point at content the configured node never
+    stored, and trace verification would never notice. urllib also turns a 301/302/303 POST into a
+    GET, which drops the episode body on the way. Point ``api`` at the final endpoint."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl} refused (trace sinks never "
+                                     "follow redirects; set the sink api to the final endpoint)", headers, fp)
+
+
+_opener = urllib.request.build_opener(_NoRedirect)
+
+
 class IpfsSink(Sink):
     """Adds the episode (header + steps) to an IPFS node through the Kubo HTTP API."""
 
@@ -54,7 +71,7 @@ class IpfsSink(Sink):
                 f"Content-Type: application/json\r\n\r\n").encode() + payload + f"\r\n--{boundary}--\r\n".encode()
         req = urllib.request.Request(f"{self.api}/api/v0/add?pin=true&cid-version=1", data=body, method="POST",
                                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+        with _opener.open(req, timeout=self.timeout) as r:
             res = json.loads(r.read())
         return {"cid": res["Hash"]}
 
