@@ -64,6 +64,10 @@ class World:
     def relative(self, o: WorldObject) -> tuple[float, float]:
         dx, dy = o.x - self.x, o.y - self.y
         dist = math.hypot(dx, dy)
+        # atan2(0, 0) is world +X. A block under the robot has no offset,
+        # so it stays straight ahead at every heading.
+        if dist == 0.0:
+            return 0.0, 0.0
         bearing = math.degrees(math.atan2(dy, dx)) - self.heading_deg
         bearing = (bearing + 180.0) % 360.0 - 180.0
         return dist, bearing
