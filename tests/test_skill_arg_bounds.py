@@ -7,6 +7,7 @@ into the object for the whole primitive budget and end in ``walk timeout``.
 
 import pytest
 
+from bruhos.brain.adapters.lfm3_omni import plan_schema
 from bruhos.brain.base import Planner
 from bruhos.runtime import Runtime
 from bruhos.schemas import Observation, SkillCall
@@ -45,6 +46,15 @@ def test_catalog_advertises_the_bounds():
     spec = {s["skill"]: s for s in catalog()}
     assert spec["follow_line"]["args"]["steps"]["ge"] == 1
     assert spec["walk_toward"]["args"]["stop_distance_m"]["gt"] == 0.0
+
+
+def test_constrained_decoding_carries_the_bounds():
+    """The on-robot brain decodes against a schema built from this catalog; a bound the schema
+    omits is a value the model can emit and validate() then rejects."""
+    calls = plan_schema(catalog())["properties"]["plan"]["items"]["anyOf"]
+    args = {c["properties"]["skill"]["const"]: c["properties"]["args"]["properties"] for c in calls}
+    assert args["follow_line"]["steps"]["minimum"] == 1
+    assert args["walk_toward"]["stop_distance_m"]["exclusiveMinimum"] == 0.0
 
 
 def test_a_zero_step_line_follow_is_rejected_before_the_body_moves():
