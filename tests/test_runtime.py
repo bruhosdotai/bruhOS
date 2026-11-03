@@ -5,7 +5,7 @@ from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.brain.base import Planner
 from bruhos.runtime import Runtime
 from bruhos.schemas import SkillCall
-from bruhos.sim.kinematic import SimBody, World
+from bruhos.sim.kinematic import SimBody, World, WorldObject
 from bruhos.trace import Sink, SinkDispatcher
 
 
@@ -93,3 +93,40 @@ def test_failed_sink_does_not_crash():
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
+
+
+def test_object_under_the_robot_is_straight_ahead():
+    """atan2(0, 0) is world +X. A block at the robot's position is not off to the side."""
+    block = WorldObject("block", "red", 0.2, 0.2)
+    world = World(objects=[block], x=0.2, y=0.2, heading_deg=90.0)
+    dist, bearing = world.relative(block)
+    assert dist == 0.0 and bearing == 0.0
+
+    body = SimBody(world)
+    seen = body.observe().find("red_block")
+    assert seen is not None and seen.distance_m == 0.0 and seen.bearing_deg == 0.0
+    assert body.act("grab") is True and world.holding is block
+
+    ahead = WorldObject("block", "blue", 0.2, 0.21)
+    dist, bearing = world.relative(ahead)
+    assert abs(dist - 0.01) < 1e-9 and bearing == 0.0
+
+    ball = WorldObject("ball", "yellow", 0.0, 0.0)
+    kick_world = World(objects=[ball], heading_deg=90.0)
+    kick_body = SimBody(kick_world)
+    assert kick_body.act("kick_right") is True
+    assert "kicked:yellow_ball" in kick_world.events
+    assert abs(ball.x) < 1e-9 and ball.y == 1.0
+
+
+def test_fall_drops_a_held_block_where_the_hand_can_pick_it_up():
+    block = WorldObject("block", "green", 0.4, 0.1)
+    world = World(objects=[block], x=0.4, y=0.1, heading_deg=30.0, holding=block)
+    body = SimBody(world, falls_at={1}, seed=0)
+    assert body.act("forward") is True
+    assert world.fallen and world.holding is None
+    assert (block.x, block.y) == (world.x, world.y)
+    assert (body.act("stand_up_front") or body.act("stand_up_back")) is True
+    assert not world.fallen
+    assert body.act("grab") is True and world.holding is block
+    assert "grab:green_block" in world.events
