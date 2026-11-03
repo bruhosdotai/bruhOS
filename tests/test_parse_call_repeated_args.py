@@ -48,3 +48,15 @@ def test_distinct_arguments_still_parse():
     assert parse_call("walk_toward(target=box, stop_distance_m=0.12)", POS) == \
         SkillCall("walk_toward", {"target": "box", "stop_distance_m": 0.12})
     assert parse_call("kick(foot=left)", POS) == SkillCall("kick", {"foot": "left"})
+
+
+@pytest.mark.parametrize("text", [
+    "walk_toward(red_block,)",                # trailing comma: empty second positional segment
+    "walk_toward(,red_block)",
+    "kick(foot=left,)",
+])
+def test_empty_segment_is_reported_as_empty_not_repeated(text):
+    # An empty segment is its own error; it must not be blamed on a repeated argument.
+    with pytest.raises(ValueError, match="empty argument") as exc:
+        parse_call(text, POS)
+    assert "more than once" not in str(exc.value)
