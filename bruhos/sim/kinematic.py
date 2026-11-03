@@ -94,7 +94,8 @@ class SimBody(Body):
             dist, bearing = w.relative(o)
             if dist <= RANGE_M and abs(bearing) <= FOV_DEG:
                 objs.append(Detection(o.label, o.color, round(bearing, 2), round(dist, 3)))
-        imu = Imu(pitch_deg=(80.0 if w.fell_forward else -80.0) if w.fallen else 0.0,
+        pitch = (80.0 if w.fell_forward is True else (-80.0 if w.fell_forward is False else 0.0)) if w.fallen else 0.0
+        imu = Imu(pitch_deg=pitch,
                   fallen=w.fallen, fell_forward=w.fell_forward if w.fallen else None)
         line = LineReading(visible=w.line_m > 0 and not w.fallen, offset=0.0)
         return Observation(t=round(self.t, 3), frame=self.frame, objects=objs, imu=imu, line=line,
