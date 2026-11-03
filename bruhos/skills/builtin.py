@@ -156,14 +156,19 @@ def release(ctx: SkillContext, args: dict) -> Outcome:
 @skill(SkillSpec("kick", "Kick with the given foot.",
                  {"foot": Arg(str, default="right", choices=("left", "right"))}, positional="foot"))
 def kick(ctx: SkillContext, args: dict) -> Outcome:
-    ctx.body.act(f"kick_{args['foot']}")
+    prim = f"kick_{args['foot']}"
+    if not ctx.body.act(prim):
+        obs = ctx.body.observe()
+        return _fallen(obs) or Outcome(Status.FAILED, f"{prim} refused by the body")
     obs = ctx.body.observe()
     return _fallen(obs) or Outcome(Status.OK, f"kicked {args['foot']}")
 
 
 @skill(SkillSpec("wave", "Wave hello."))
 def wave(ctx: SkillContext, args: dict) -> Outcome:
-    ctx.body.act("wave")
+    if not ctx.body.act("wave"):
+        obs = ctx.body.observe()
+        return _fallen(obs) or Outcome(Status.FAILED, "wave refused by the body")
     obs = ctx.body.observe()
     return _fallen(obs) or Outcome(Status.OK, "waved")
 
