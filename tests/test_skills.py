@@ -37,6 +37,20 @@ def test_shorthand_parse():
     assert parse_call("detect", pos) == SkillCall("detect", {})
 
 
+def test_shorthand_keyword_after_positional():
+    pos = positional_args()
+    assert parse_call("walk_toward(red_block, stop_distance_m=0.2)", pos) == SkillCall(
+        "walk_toward", {"target": "red_block", "stop_distance_m": 0.2}
+    )
+
+
+def test_second_positional_value_is_rejected_not_overwritten():
+    """A skill has at most one positional slot; a second bare value must not replace the first."""
+    pos = positional_args()
+    with pytest.raises(ValueError, match="second positional"):
+        parse_call("walk_toward(red_block, 0.2)", pos)
+
+
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
