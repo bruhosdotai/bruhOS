@@ -28,7 +28,10 @@ def _scan(ctx: SkillContext, target: str) -> tuple[Outcome | None, Observation]:
             return None, obs
         if ctx.should_stop():
             return Outcome(Status.STOPPED, "stop requested"), obs
-        ctx.body.act("turn_left")
+        if not ctx.body.act("turn_left"):
+            if ctx.should_stop():
+                return Outcome(Status.STOPPED, "stop requested"), obs
+            return Outcome(Status.FAILED, f"could not turn while scanning for {target}"), obs
         obs = ctx.body.observe()
     if (f := _fallen(obs)):
         return f, obs

@@ -1,7 +1,8 @@
 import pytest
 
-from bruhos.schemas import SkillCall, parse_call
-from bruhos.skills import SKILLS, SkillError, catalog_hash, validate
+from bruhos.schemas import SkillCall, Status, parse_call
+from bruhos.sim.kinematic import SimBody
+from bruhos.skills import SKILLS, SkillContext, SkillError, catalog_hash, run_skill, validate
 from bruhos.skills.registry import positional_args
 
 V01 = {"look_at", "detect", "walk_toward", "follow_line", "grab", "release", "kick", "wave", "stand_up", "stop"}
@@ -40,3 +41,23 @@ def test_shorthand_parse():
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
+
+
+def test_detect_stops_after_a_rejected_scan_turn():
+    class RefusesTurns(SimBody):
+        def __init__(self):
+            super().__init__()
+            self.turn_attempts = 0
+
+        def act(self, primitive):
+            if primitive == "turn_left":
+                self.turn_attempts += 1
+                return False
+            return super().act(primitive)
+
+    body = RefusesTurns()
+    outcome = run_skill(SkillContext(body), SkillCall("detect", {"target": "green_block"}))
+
+    assert outcome.status is Status.FAILED
+    assert outcome.detail == "could not turn while scanning for green_block"
+    assert body.turn_attempts == 1
