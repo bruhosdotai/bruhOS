@@ -92,10 +92,12 @@ class TonyPiBody(Body):
                 self.agc.runActionGroup(group, **kw)
             except TypeError:
                 self.agc.runActionGroup(group)
-        if primitive == "grab":
-            self.holding = "object"
-        elif primitive == "release":
-            self.holding = None
+            # Publish the hand state before the next serialized action group can run, so a later
+            # release/grab is never overwritten by this one.
+            if primitive == "grab":
+                self.holding = "object"
+            elif primitive == "release":
+                self.holding = None
         return True
 
     def halt(self) -> None:
