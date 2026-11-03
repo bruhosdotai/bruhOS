@@ -63,6 +63,10 @@ def plan_schema(catalog: list[dict[str, Any]]) -> dict[str, Any]:
             p: dict[str, Any] = {"type": _JSON_TYPES.get(a["type"], "string")}
             if "choices" in a:
                 p["enum"] = a["choices"]
+            if "ge" in a:
+                p["minimum"] = a["ge"]
+            if "gt" in a:
+                p["exclusiveMinimum"] = a["gt"]
             props[name] = p
         calls.append({
             "type": "object",

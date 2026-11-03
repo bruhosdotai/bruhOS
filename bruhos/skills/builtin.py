@@ -77,7 +77,10 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
 
 @skill(SkillSpec("walk_toward", "Walk until the target is within reach.",
                  {"target": Arg(str, required=True),
-                  "stop_distance_m": Arg(float, default=0.1)}, positional="target"))
+                  "stop_distance_m": Arg(float, default=0.1, gt=0.0,
+                                         doc="metres from the target to stop at; must be > 0, "
+                                             "otherwise the robot drives into the object and the walk times out")},
+                 positional="target"))
 def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
     target, stop_at = args["target"], args["stop_distance_m"]
     err, obs = _scan(ctx, target)
@@ -105,7 +108,8 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
 
 
 @skill(SkillSpec("follow_line", "Follow a floor line for up to `steps` gait cycles.",
-                 {"steps": Arg(int, default=20)}, positional="steps"))
+                 {"steps": Arg(int, default=20, ge=1, doc="gait cycles to walk, at least 1")},
+                 positional="steps"))
 def follow_line(ctx: SkillContext, args: dict) -> Outcome:
     obs = ctx.body.observe()
     if (f := _fallen(obs)):

@@ -23,6 +23,8 @@ class Arg:
     choices: tuple[Any, ...] | None = None
     default: Any = None
     doc: str = ""
+    ge: float | None = None         # inclusive lower bound (numeric args)
+    gt: float | None = None         # exclusive lower bound (numeric args)
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ class SkillSpec:
                 k: {"type": a.type.__name__, "required": a.required,
                     **({"choices": list(a.choices)} if a.choices else {}),
                     **({"default": a.default} if a.default is not None else {}),
+                    **({"ge": a.ge} if a.ge is not None else {}),
+                    **({"gt": a.gt} if a.gt is not None else {}),
                     **({"doc": a.doc} if a.doc else {})}
                 for k, a in self.args.items()
             },
@@ -92,6 +96,11 @@ def validate(call: SkillCall) -> SkillCall:
             raise SkillError(f"{call.skill}.{k}: must be a finite number, got {v!r}")
         if a.choices and v not in a.choices:
             raise SkillError(f"{call.skill}.{k}: {v!r} not in {list(a.choices)}")
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            if a.ge is not None and v < a.ge:
+                raise SkillError(f"{call.skill}.{k}: must be >= {a.ge}, got {v!r}")
+            if a.gt is not None and v <= a.gt:
+                raise SkillError(f"{call.skill}.{k}: must be > {a.gt}, got {v!r}")
         out[k] = v
     return SkillCall(call.skill, out)
 
