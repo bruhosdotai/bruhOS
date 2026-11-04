@@ -73,6 +73,8 @@ class ChainSink(Sink):
 
     @staticmethod
     def anchor_payload(ep: Episode) -> dict[str, Any]:
+        if not ep.trace_root:
+            raise ValueError("cannot anchor an unsealed episode: trace_root is empty (seal it first)")
         return {
             "episode_id": ep.episode_id,
             "trace_root": "0x" + ep.trace_root,
