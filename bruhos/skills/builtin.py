@@ -94,10 +94,10 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
             if err:
                 return err
             continue
-        if d.distance_m is not None and d.distance_m <= stop_at:
-            return Outcome(Status.OK, f"reached {d.name}", {"distance_m": d.distance_m})
         if abs(d.bearing_deg) > WALK_AIM_DEG:
             ctx.body.act("turn_left" if d.bearing_deg > 0 else "turn_right")
+        elif d.distance_m is not None and d.distance_m <= stop_at:
+            return Outcome(Status.OK, f"reached {d.name}", {"distance_m": d.distance_m})
         else:
             ctx.body.act("forward")
         obs = ctx.body.observe()
