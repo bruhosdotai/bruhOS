@@ -56,6 +56,14 @@ class Runtime:
         )
         try:
             self._run(ep)
+        except KeyboardInterrupt:
+            # The finally block seals and saves this episode, and cmd_run turns
+            # Ctrl-C into exit 130 without ever seeing it: record why it ended,
+            # like every other exit path in _run, instead of leaving the saved
+            # header's end_reason blank for the dashboard and other readers.
+            if not ep.end_reason:
+                ep.end_reason = "interrupted"
+            raise
         finally:
             ep.ended_at = time.time()
             seal(ep)
