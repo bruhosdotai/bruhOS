@@ -116,6 +116,8 @@ class SimBody(Body):
                     w.holding.x, w.holding.y = w.x, w.y
                     w.holding = None
                 return True
+        if not hasattr(self, f"_p_{primitive}"):
+            return False
         return getattr(self, f"_p_{primitive}")()
 
     def halt(self) -> None:
