@@ -191,11 +191,12 @@ class ElizaBridgeBody(Body):
         params = {"speed": w["speed"], "height": w["height"], "x": x, "y": 0.0, "yaw": yaw}
         if not self._send("walk.set", params).get("ok"):
             return False
-        if not self._send("walk.command", {"action": "start"}).get("ok"):
-            return False
         ok = True
-        end = time.monotonic() + (w["forward_s"] if primitive == "forward" else w["turn_s"])
         try:
+            # A missing response does not prove that the bridge refused to start.
+            if not self._send("walk.command", {"action": "start"}).get("ok"):
+                return False
+            end = time.monotonic() + (w["forward_s"] if primitive == "forward" else w["turn_s"])
             while time.monotonic() < end:
                 if self._halted.is_set() or self._deadman.is_set():
                     ok = False
