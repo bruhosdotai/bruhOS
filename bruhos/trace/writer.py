@@ -24,6 +24,8 @@ class TraceWriter:
 
 def load_episode(path: str | Path) -> Episode:
     d = Path(path)
+    if d.is_file() or d.name in ("episode.json", "steps.jsonl"):
+        d = d.parent
     h = json.loads((d / "episode.json").read_text())
     steps = []
     with (d / "steps.jsonl").open() as f:
