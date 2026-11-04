@@ -69,12 +69,16 @@ def skill(spec: SkillSpec):
 
 def validate(call: SkillCall) -> SkillCall:
     """Return a normalized call (defaults filled, types coerced) or raise SkillError."""
+    if not isinstance(call, SkillCall):
+        raise SkillError(f"expected SkillCall, got {type(call).__name__}")
     spec = SKILLS.get(call.skill)
     if spec is None:
         raise SkillError(f"unregistered skill: {call.skill!r}")
+    if not isinstance(call.args, dict):
+        raise SkillError(f"{call.skill}: args must be a dict, got {type(call.args).__name__}")
     unknown = set(call.args) - set(spec.args)
     if unknown:
-        raise SkillError(f"{call.skill}: unknown args {sorted(unknown)}")
+        raise SkillError(f"{call.skill}: unknown args {sorted(unknown, key=str)}")
     out: dict[str, Any] = {}
     for k, a in spec.args.items():
         if k not in call.args:
