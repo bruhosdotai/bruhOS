@@ -24,6 +24,18 @@ def test_roundtrip_and_tamper_detection(tmp_path):
     assert not verify_episode(loaded)
 
 
+def test_header_tamper_detection(tmp_path):
+    ep = _episode()
+    d = LocalSink(tmp_path).emit(ep)["path"]
+    loaded = load_episode(d)
+    assert verify_episode(loaded)
+    loaded.success = not loaded.success
+    assert not verify_episode(loaded)
+    loaded = load_episode(d)
+    loaded.plan.append({"skill": "wave", "args": {}})
+    assert not verify_episode(loaded)
+
+
 def test_reorder_changes_root():
     ep = _episode()
     leaves = [s.hash for s in ep.steps]
