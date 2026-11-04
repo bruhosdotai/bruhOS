@@ -47,3 +47,14 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_empty_episode_root_depends_on_identity_and_detects_tamper():
+    ep = Runtime(SimBody(), RulesPlanner()).run("blorp zzz nothing")
+    assert len(ep.steps) == 0
+    assert ep.trace_root != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    other = Runtime(SimBody(), RulesPlanner()).run("blorp zzz nothing")
+    assert other.trace_root != ep.trace_root
+    assert verify_episode(ep)
+    ep.instruction = "TAMPERED instruction"
+    assert not verify_episode(ep)
