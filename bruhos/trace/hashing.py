@@ -34,9 +34,15 @@ def merkle_root(leaves: list[str]) -> str:
 
 
 def seal(ep: Episode) -> str:
-    """Fill step hashes and the episode trace_root. Returns trace_root."""
-    prev = sha256_hex(canonical({"episode_id": ep.episode_id, "instruction": ep.instruction,
-                                 "skillpack_hash": ep.skillpack_hash}))
+    """Fill step hashes and the episode trace_root. Returns trace_root.
+
+    The genesis hash commits to the episode header (minus trace_root itself),
+    so editing success, plan, end_reason or any other header field after sealing
+    invalidates the root just as editing a step does.
+    """
+    genesis = ep.header()
+    genesis.pop("trace_root")
+    prev = sha256_hex(canonical(genesis))
     for s in ep.steps:
         s.hash = step_hash(s, prev)
         prev = s.hash
