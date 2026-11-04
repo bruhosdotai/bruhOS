@@ -40,7 +40,11 @@ def seal(ep: Episode) -> str:
     for s in ep.steps:
         s.hash = step_hash(s, prev)
         prev = s.hash
-    ep.trace_root = merkle_root([s.hash for s in ep.steps])
+    # With no steps the Merkle root would be the constant hash of empty input,
+    # identical for every empty episode and independent of the genesis hash.
+    # Commit the genesis hash itself so a step-less episode still has a root
+    # that depends on its identity.
+    ep.trace_root = prev if not ep.steps else merkle_root([s.hash for s in ep.steps])
     return ep.trace_root
 
 
