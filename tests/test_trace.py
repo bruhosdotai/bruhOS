@@ -47,3 +47,27 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_lerobot_frame_ids_a_skill_registered_after_import():
+    """A skill registered after bruhos.trace.lerobot was imported must still export
+    a real action id, not the silent -1 'unknown' placeholder."""
+    from bruhos.schemas import Outcome, Status, Step
+    from bruhos.skills import registry as reg
+
+    @reg.skill(reg.SkillSpec("zz_custom_skill", "test-only skill"))
+    def _impl(ctx, args):
+        return Outcome(Status.OK, "ok")
+
+    try:
+        ep = _episode()
+        ep.steps.append(Step(index=len(ep.steps), t=0.0,
+                             call={"skill": "zz_custom_skill", "args": {}},
+                             outcome={"status": "ok", "detail": "", "data": {}},
+                             obs_before={"imu": {}, "line": {}, "objects": []}, kind="skill"))
+        frame = to_lerobot_frames(ep)[-1]
+        assert frame["action"][0] != -1.0
+        assert frame["action"][0] == float(sorted(reg.SKILLS).index("zz_custom_skill"))
+    finally:
+        reg.SKILLS.pop("zz_custom_skill", None)
+        reg._IMPL.pop("zz_custom_skill", None)

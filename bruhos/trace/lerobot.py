@@ -13,7 +13,10 @@ from typing import Any
 from bruhos.schemas import Episode
 from bruhos.skills import SKILLS
 
-SKILL_INDEX = {name: i for i, name in enumerate(sorted(SKILLS))}
+def skill_index() -> dict[str, int]:
+    """Action ids follow the live registry, not an import-time snapshot, so a skill
+    registered after this module was imported still exports a real id instead of -1."""
+    return {name: i for i, name in enumerate(sorted(SKILLS))}
 
 STATE_NAMES = ["imu.roll_deg", "imu.pitch_deg", "imu.fallen", "holding", "n_objects", "line.visible", "line.offset"]
 ACTION_NAMES = ["skill_id", "status_ok"]
@@ -40,6 +43,7 @@ def _state(obs: dict[str, Any]) -> list[float]:
 
 
 def to_lerobot_frames(ep: Episode, episode_index: int = 0, start_index: int = 0) -> list[dict[str, Any]]:
+    index = skill_index()
     steps = [s for s in ep.steps if s.kind in {"skill", "recovery", "stop"}]
     t0 = steps[0].t if steps else 0.0
     frames = []
@@ -47,7 +51,7 @@ def to_lerobot_frames(ep: Episode, episode_index: int = 0, start_index: int = 0)
         last = i == len(steps) - 1
         frames.append({
             "observation.state": _state(s.obs_before),
-            "action": [float(SKILL_INDEX.get(s.call["skill"], -1)), float(s.outcome["status"] == "ok")],
+            "action": [float(index.get(s.call["skill"], -1)), float(s.outcome["status"] == "ok")],
             "timestamp": round(s.t - t0, 4),
             "frame_index": i,
             "episode_index": episode_index,
