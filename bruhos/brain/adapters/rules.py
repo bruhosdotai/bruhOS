@@ -43,9 +43,12 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
-            if obj in (None, "line") or has(" it "):
-                if obs.holding:
+            if obs.holding:
+                holding_tokens = set(obs.holding.lower().split("_"))
+                target_tokens = set(obj.lower().split("_")) if obj else set()
+                if not target_tokens or target_tokens <= holding_tokens or obs.holding == "object" or has(" it "):
                     return [_c("walk_toward", target="box"), _c("release")]
+            if obj in (None, "line") or has(" it "):
                 obj = obj if obj not in (None, "line") else "block"
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
                     _c("walk_toward", target="box"), _c("release")]
