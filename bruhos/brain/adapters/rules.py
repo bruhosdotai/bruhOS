@@ -71,6 +71,6 @@ class RulesPlanner(Planner):
             return [_c("look_at", target=obj)]
         if has("find", "where", "locate", "search", "detect", "see") and obj:
             return [_c("detect", target=obj)]
-        if has("what do you see", "look around", "what s around", "scan"):
+        if has("what do you see", "what can you see", "look around", "what s around", "what is around", "scan"):
             return [_c("detect")]
         return []
