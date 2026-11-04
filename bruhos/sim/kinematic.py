@@ -206,8 +206,15 @@ class SimBody(Body):
 
     def _stand_up(self, front: bool) -> bool:
         w = self.world
-        if not w.fallen or w.fell_forward is not front:
+        if not w.fallen:
             return False
+        if w.fell_forward is not None and w.fell_forward is not front:
+            return False
+        # Unknown fall direction (fell_forward is None, e.g. a roll-only fall):
+        # either recovery primitive may stand the robot up. Refusing both
+        # strands the robot: the stand_up skill tries front then back, both
+        # fail, and the runtime burns its whole recovery budget on a fall
+        # that can never clear.
         w.fallen, w.fell_forward = False, None
         w.events.append("stood_up")
         return True
