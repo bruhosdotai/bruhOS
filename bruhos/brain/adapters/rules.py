@@ -59,7 +59,8 @@ class RulesPlanner(Planner):
             return [_c("follow_line")]
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
-        if has("drop", "release", "let go", "open your hand"):
+        down = re.search(r"\b(put|set|place)\b.*\b(down|on\s+(the\s+)?(floor|ground|table))\b", s) or has("put down", "set down", "place down")
+        if has("drop", "release", "let go", "open your hand") or down:
             return [_c("release")]
 
         obj = _target(s)
