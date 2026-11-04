@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any, Callable
 
@@ -55,14 +56,27 @@ class OpenAICompatPlanner(Planner):
         msgs.append({"role": "user", "content": self.user_content(instruction, obs)})
         return msgs
 
+    def _post(self, payload: dict[str, Any]) -> bytes:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return self.transport(
+            f"{self.base_url}/chat/completions", headers, json.dumps(payload).encode(), self.timeout
+        )
+
     def _complete(self, msgs: list[dict[str, Any]]) -> list[SkillCall]:
         payload: dict[str, Any] = {"model": self.model, "messages": msgs, "temperature": 0}
         if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        raw = self.transport(f"{self.base_url}/chat/completions", headers, json.dumps(payload).encode(), self.timeout)
+        try:
+            raw = self._post(payload)
+        except urllib.error.HTTPError as e:
+            # Some Ollama / older OpenAI-compat servers reject response_format.
+            if self.json_mode and e.code in (400, 404, 422):
+                payload.pop("response_format", None)
+                raw = self._post(payload)
+            else:
+                raise
         content = json.loads(raw)["choices"][0]["message"]["content"]
         return parse_plan(content)
 

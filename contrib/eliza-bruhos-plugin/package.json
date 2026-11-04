@@ -1,0 +1,8 @@
+{
+  "name": "@bruhos/plugin-skills",
+  "version": "0.1.0",
+  "description": "elizaOS / odiza plugin: skill actions that POST to bruhOS Pi /v1/skills/run",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "Apache-2.0"
+}

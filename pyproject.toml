@@ -21,8 +21,33 @@ dependencies = []
 
 [project.optional-dependencies]
 vision = ["opencv-python-headless>=4.8", "numpy>=1.24"]
+ground = [
+  "opencv-python-headless>=4.8",
+  "numpy>=1.24",
+  "ultralytics>=8.1",
+  "pillow>=10",
+]
+florence = [
+  "opencv-python-headless>=4.8",
+  "numpy>=1.24",
+  "pillow>=10",
+  "torch",
+  "transformers>=4.40",
+  "einops",
+  "timm",
+]
+# Install CPU torch on Pi (avoid CUDA wheels filling the disk):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#   pip install 'bruhos[depth]'
+depth = [
+  "opencv-python-headless>=4.8",
+  "numpy>=1.24",
+  "torch",
+  "torchvision",
+]
 imu = ["smbus2>=0.4"]
 speech = ["faster-whisper>=1.0"]
+ear = ["pyserial>=3.5"]
 dev = ["pytest>=8"]
 
 [project.scripts]
@@ -36,7 +61,7 @@ X = "https://x.com/bruhos_ai"
 include = ["bruhos*"]
 
 [tool.setuptools.package-data]
-bruhos = ["eval/*.toml", "sim/*.toml"]
+bruhos = ["eval/*.toml", "sim/*.toml", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

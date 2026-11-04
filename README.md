@@ -127,15 +127,28 @@ Sim baseline for the `rules` brain (kinematic sim, not hardware):
 ## Brains
 
 ```bash
-# OpenAI or any OpenAI-compatible server
+# OpenAI or any OpenAI-compatible server (vLLM, Ollama, zerollama, ...)
 export OPENAI_API_KEY=...
+export BRUHOS_LLM_BASE_URL=http://127.0.0.1:2083/v1   # optional; default is api.openai.com
+export BRUHOS_LLM_MODEL=qwen2.5:7b
 bruhos run "Wave hello." --brain openai
+
+# Same thing via config (brain + remote ASR/TTS)
+bruhos run "Wave hello." --config configs/zerollama.toml
+bruhos say "Hello from the robot." --config configs/zerollama.toml
+bruhos listen --config configs/zerollama.toml --seconds 3
+bruhos web --config configs/zerollama.toml   # http://<pi>:8090/ PTT + /tts.wav (LAN, no auth)
 
 # Local Qwen-VL on a desktop GPU (not on the Pi)
 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
 export BRUHOS_LLM_BASE_URL=http://<gpu-host>:8000/v1
 bruhos run "Kick the ball." --brain qwen_vl
 ```
+
+Remote speech uses OpenAI-compatible `/v1/audio/transcriptions` and `/v1/audio/speech`.
+With `playback = "http"`, TTS wavs land in `speech.http_dir`; `bruhos web` serves them at `/tts.wav` for VLC.
+Press-to-talk returns a transcript labeled as an assumed command (skills not executed yet).
+Open-mic address detection (systemone / Laya) is documented in `docs/roadmap-address-gate.md`.
 
 All brains receive the skill catalog and the observation JSON and must answer with:
 

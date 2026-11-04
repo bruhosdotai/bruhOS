@@ -1,0 +1,123 @@
+# OpenAI-compatible remote brain + speech via zerollama (or Ollama / vLLM).
+# Note: use http:// not https:// unless the server terminates TLS.
+
+[body]
+name = "sim"
+
+[speech]
+language = "en"
+asr = "openai"
+tts = "openai"
+base_url = "http://127.0.0.1:2083/v1"   # your OpenAI-compatible endpoint
+asr_model = "whisper-base:latest"
+tts_model = "piper-lessac:latest"
+tts_voice = "alloy"
+playback = "both"                 # aplay on WonderEcho + /tmp/bruh-audio/tts.wav for browser
+aplay_device = "plughw:Device,0"  # WonderEcho Pro USB audio (card name, not index)
+http_dir = "/tmp/bruh-audio"
+timeout = 120.0
+# api_key = ""                    # or export OPENAI_API_KEY / BRUHOS uses api_key_env
+# api_key_env = "OPENAI_API_KEY"
+
+# WonderEcho Pro CI1302: wake word over /dev/ttyUSB0, mic/spk on USB PnP "Device"
+[ear]
+port = "/dev/ttyUSB0"
+device = "plughw:Device,0"
+seconds = 5.0
+rate = 16000
+channels = 1
+ack = true
+ack_text = "Yes?"
+sleep_text = "Okay, standing by."
+debug = true                      # journalctl -u bruhos-ear -f  (+ keep wavs under /tmp/bruhos-ear-wav)
+keep_wav_dir = "/tmp/bruhos-ear-wav"
+
+[brain]
+name = "openai"
+base_url = "http://127.0.0.1:2083/v1"
+model = "qwen2.5:7b"
+json_mode = true                  # auto-retries without response_format if the server rejects it
+# api_key = ""
+# api_key_env = "OPENAI_API_KEY"
+
+# Voice agent: native tool loop on the Pi (default). plugin = odiza/eliza at agent.url
+[agent]
+harness = "native"                # native | plugin
+body = "tonypi"                   # ear/skills use TonyPi; do not use [body] name=sim above
+body_config = "configs/tonypi.toml"
+max_steps = 6
+# url = "http://127.0.0.1:3000/bruhos/message"   # when harness = plugin
+
+
+[web]
+host = "0.0.0.0"
+port = 8090
+tls = true                        # Safari needs https:// for mic; trust the self-signed cert once
+speak_replies = true              # after LLM reply, synthesize /tts.wav and play in the page
+max_turns = 16                    # keep last N user/assistant pairs as context
+# Role-play / Game Master rules live in bruhos.listen.chat.DEFAULT_SYSTEM
+# system_prompt = "..."             # optional full override
+# cert_dir = "/tmp/bruh-audio/certs"
+# PTT: STT → brain.model chat → TTS. LAN open, no auth — home lab only.
+
+# Head FOV grid → multi-image VL inventory (bruhos scan). Stop other TonyPi apps first.
+[scan]
+base_url = "http://127.0.0.1:2083/v1"
+model = "ministral-3:3b"          # fast inventory; must be vision-capable
+ground_model = "qwen3.6-64k:latest"  # locate boxes (ministral often returns none)
+timeout = 180.0
+settle_ms = 1200                  # stillness after servo move finishes (avoid motion blur)
+retune = true                     # at each pose, retune camera from image feedback
+retune_mode = "guided"            # guided (feedback) | sweep (full OFAT)
+retune_good_enough = 75           # only stop early when still is clearly strong + clean
+retune_max_trials = 12            # max grabs after baseline per pose (guided)
+retune_settle_ms = 250            # wait after each control change (no head motion)
+burst_frames = 5                  # after retune, keep sharpest of N stills
+vl_min_lap_var = 25               # drop soft frames from VL
+vl_min_mean = 40                  # drop dark frames from VL
+vl_min_score = 30
+vl_max_images = 6                 # send top quality views only
+jpeg_quality = 95
+# merge_model = "qwen2.5:7b"      # used only if multi-image request is rejected
+
+[head]
+sdk_path = "/home/pi/TonyPi"
+servo_config = "/home/pi/TonyPi/servo_config.yaml"
+yaw_offset_us = 400               # Hiwonder yaw stop (center ± this)
+# Camera POV: L* = look left in the image, R* = look right. This robot's yaw
+# servo is mirrored vs pulse math, so flip the sign.
+yaw_sign = -1
+# servo1 (~914) = table-down; higher pulse = look up. 1200 is still floor-ish (KickBall).
+# 1800 matches Head_Control nod high end.
+pitch_max_us = 1800
+move_ms = 500                     # PWM trajectory time; scan waits move_ms + settle_ms
+# pitch_min_us omitted → use servo1 from servo_config
+
+[camera]
+enabled = true
+device = 0
+width = 640
+height = 480
+hfov_deg = 62.0
+
+# Optional override of retune candidate values (defaults cover icspring UVC knobs).
+# [camera.retune]
+# brightness = [64, 128, 192]
+# sharpness = [64, 128, 255]
+
+# Hot-loop vision on the Pi (NOT zerollama serve). Control ticks use local only.
+# See/scan grounding: GPU POST {detect_url}/v1/detect, then VL boxes if needed.
+[detect]
+backend = "hsv"                     # hsv | onnx (nano COCO; needs onnx_path)
+# onnx_path = "/opt/models/yolov8n.onnx"
+ground = "auto"                     # auto (detect→VL) | detect | vl
+detect_url = "http://127.0.0.1:2083"
+remote_model = "detect"
+coordinate_space = "normalized"
+# threshold = 0.25
+# max_detections = 32
+timeout = 60.0
+
+[trace]
+root = "traces"
+sinks = ["local"]

@@ -4,32 +4,23 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from typing import Any
 
-DEFAULT_LANGUAGE = "en"
+from .base import DEFAULT_LANGUAGE, ASR, SpeechConfig, TTS
 
-
-@dataclass
-class SpeechConfig:
-    language: str = DEFAULT_LANGUAGE
-    asr_model: str = "base.en"          # faster-whisper English-only checkpoint
-    tts_voice: str = "en-us"
-    allow_non_english: bool = False
-
-    def __post_init__(self) -> None:
-        if self.language != "en" and not self.allow_non_english:
-            raise ValueError(f"bruhOS is English-first; language={self.language!r} needs allow_non_english=True")
-
-
-class ASR(ABC):
-    @abstractmethod
-    def transcribe(self, wav_path: str) -> str: ...
-
-
-class TTS(ABC):
-    @abstractmethod
-    def say(self, text: str) -> None: ...
+__all__ = [
+    "DEFAULT_LANGUAGE",
+    "ASR",
+    "TTS",
+    "SpeechConfig",
+    "WhisperASR",
+    "EspeakTTS",
+    "PrintTTS",
+    "OpenAICompatASR",
+    "OpenAICompatTTS",
+    "make_asr",
+    "make_tts",
+]
 
 
 class WhisperASR(ASR):
@@ -37,11 +28,14 @@ class WhisperASR(ASR):
 
     def __init__(self, cfg: SpeechConfig | None = None):
         from faster_whisper import WhisperModel  # optional extra: pip install bruhos[speech]
+
         self.cfg = cfg or SpeechConfig()
         self.model = WhisperModel(self.cfg.asr_model, device="cpu", compute_type="int8")
 
     def transcribe(self, wav_path: str) -> str:
-        segments, _ = self.model.transcribe(wav_path, language=self.cfg.language, beam_size=1, vad_filter=True)
+        segments, _ = self.model.transcribe(
+            wav_path, language=self.cfg.language, beam_size=1, vad_filter=True
+        )
         return " ".join(s.text.strip() for s in segments).strip()
 
 
@@ -59,3 +53,33 @@ class EspeakTTS(TTS):
 class PrintTTS(TTS):
     def say(self, text: str) -> None:
         print(f"[bruh] {text}")
+
+
+def make_asr(cfg: SpeechConfig | dict[str, Any] | None = None) -> ASR:
+    c = cfg if isinstance(cfg, SpeechConfig) else SpeechConfig(**(cfg or {}))
+    if c.asr in ("openai", "remote", "zerollama", "ollama"):
+        from .openai_compat import OpenAICompatASR
+        return OpenAICompatASR(c)
+    if c.asr == "local":
+        return WhisperASR(c)
+    raise ValueError(f"unknown speech.asr {c.asr!r} (local | openai)")
+
+
+def make_tts(cfg: SpeechConfig | dict[str, Any] | None = None) -> TTS:
+    c = cfg if isinstance(cfg, SpeechConfig) else SpeechConfig(**(cfg or {}))
+    if c.tts in ("openai", "remote", "zerollama", "ollama"):
+        from .openai_compat import OpenAICompatTTS
+        return OpenAICompatTTS(c)
+    if c.tts == "print":
+        return PrintTTS()
+    if c.tts == "local":
+        return EspeakTTS(c)
+    raise ValueError(f"unknown speech.tts {c.tts!r} (local | openai | print)")
+
+
+# re-export remote classes lazily-friendly
+def __getattr__(name: str):
+    if name in ("OpenAICompatASR", "OpenAICompatTTS"):
+        from . import openai_compat
+        return getattr(openai_compat, name)
+    raise AttributeError(name)

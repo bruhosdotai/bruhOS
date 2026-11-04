@@ -8,3 +8,6 @@ dist/
 .env
 traces/
 .DS_Store
+models/depth/*.pth
+vendor/Depth-Anything-V2/
+configs/*.local.toml

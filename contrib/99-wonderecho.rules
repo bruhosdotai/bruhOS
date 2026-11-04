@@ -1,0 +1,4 @@
+# WonderEcho Pro hub: CH340 wake UART (1a86:7523) + JMTek USB PnP audio (0c76:161f)
+# Mute mic sidetone as soon as the sound card appears (prevents plug-in screech).
+ACTION=="add", SUBSYSTEM=="sound", ATTRS{idVendor}=="0c76", ATTRS{idProduct}=="161f", RUN+="/root/Sites/bruhOS/contrib/wonderecho-alsa.sh"
+ACTION=="add", KERNEL=="ttyUSB*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="systemd", ENV{SYSTEMD_WANTS}="bruhos-ear.service"

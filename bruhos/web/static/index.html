@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bruhOS</title>
+  <style>
+    :root { color-scheme: dark; --bg: #12141a; --fg: #e8e6e1; --mute: #8b8680; --acc: #c45c26; --ok: #6a9e6a; --line: #2a2e38; --card: #0c0e12; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font: 16px/1.45 "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #2a221c, var(--bg)); color: var(--fg);
+      padding: 1.25rem 1.5rem 2rem; }
+    .wrap { width: min(56rem, 100%); margin: 0 auto; display: grid; gap: 1.75rem; }
+    @media (min-width: 820px) { .wrap { grid-template-columns: 1.15fr 0.85fr; align-items: start; } }
+    h1 { font: 600 1.4rem/1.2 "IBM Plex Serif", Georgia, serif; margin: 0 0 .35rem; letter-spacing: .02em; }
+    h2 { font: 600 1.05rem/1.2 "IBM Plex Serif", Georgia, serif; margin: 0 0 .65rem; }
+    p.sub { margin: 0 0 1rem; color: var(--mute); font-size: .92rem; }
+    section.panel { padding: 0; }
+    .frame {
+      position: relative; width: 100%; aspect-ratio: 4 / 3; background: var(--card);
+      border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+      display: grid; place-items: center; color: var(--mute); font-size: .9rem;
+    }
+    .frame img { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+    .frame .placeholder { padding: 1rem; text-align: center; }
+    .meta { margin: .65rem 0 0; font-size: .82rem; color: var(--mute); display: flex; flex-wrap: wrap; gap: .4rem .75rem; }
+    .meta b { color: var(--fg); font-weight: 600; }
+    .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem; min-height: 1.5rem; }
+    .chip { font-size: .78rem; padding: .2rem .5rem; border-radius: 999px; border: 1px solid #3a342c; background: #1a1612; color: #e0c2a0; }
+    button.primary { border: 0; border-radius: 999px; padding: .85rem 1.2rem; font: 600 1rem/1 inherit;
+      color: #1a120e; background: var(--acc); cursor: pointer; }
+    button.primary:disabled { opacity: .45; cursor: not-allowed; }
+    button.primary:active:not(:disabled) { filter: brightness(1.08); }
+    .stages { margin-top: .9rem; display: grid; gap: .55rem; }
+    .stage { display: grid; grid-template-columns: 1.4rem 1fr; gap: .45rem .55rem; align-items: center; }
+    .stage .mark { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 2px solid #3a3f4a; background: transparent; }
+    .stage.running .mark { border-color: var(--acc); box-shadow: inset 0 0 0 3px var(--acc); }
+    .stage.done .mark { border-color: var(--ok); background: var(--ok); }
+    .stage.error .mark { border-color: #e07070; background: #e07070; }
+    .stage.skipped .mark { border-color: #4a4e58; background: #2a2e38; }
+    .stage .label { font-size: .88rem; display: flex; justify-content: space-between; gap: .5rem; }
+    .stage .label span.sec { color: var(--mute); font-size: .78rem; white-space: nowrap; }
+    .bar { grid-column: 2; height: 6px; border-radius: 99px; background: #1c2028; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0; background: var(--acc); transition: width .25s ease; }
+    .stage.done .bar > i { background: var(--ok); }
+    .stage.error .bar > i { background: #e07070; }
+    .stage .detail { grid-column: 2; font-size: .78rem; color: var(--mute); min-height: 1em; }
+    .bubble { margin: 0 0 .55rem; padding: .75rem .9rem; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
+    .bubble .who { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); margin-bottom: .25rem; }
+    .bubble.tony { border-color: #5a3a22; }
+    #log { max-height: 36vh; overflow: auto; margin-top: .75rem; }
+    button.link { background: none; border: 0; color: var(--mute); text-decoration: underline; cursor: pointer; font: inherit; font-size: .85rem; padding: 0; }
+    button#ptt { width: 100%; border: 0; border-radius: 999px; padding: 1.1rem 1.25rem; font: 600 1.05rem/1 inherit;
+      color: #1a120e; background: var(--acc); cursor: pointer; transition: transform .08s ease, filter .15s;
+      -webkit-user-select: none; user-select: none; touch-action: none; }
+    button#ptt:active, button#ptt.hot { transform: scale(.98); filter: brightness(1.08); }
+    button#ptt:disabled { opacity: .45; cursor: not-allowed; }
+    .row { display: flex; gap: .75rem; margin-top: .75rem; align-items: center; flex-wrap: wrap; }
+    label.file { font-size: .85rem; color: var(--mute); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .status { margin: .75rem 0 .5rem; min-height: 1.4em; color: var(--mute); font-size: .9rem; }
+    .status.err { color: #e07070; }
+    .status.ok { color: var(--ok); }
+    .warn { margin: 0 0 1rem; padding: .75rem .9rem; border-radius: 10px; background: #2a1c14;
+      border: 1px solid #5a3a22; color: #e0c2a0; font-size: .85rem; display: none; }
+    .warn.show { display: block; }
+    .note { margin-top: .75rem; font-size: .8rem; color: var(--mute); }
+    a { color: #d9a57a; }
+    .see-actions { display: flex; gap: .75rem; align-items: center; margin-top: .85rem; flex-wrap: wrap; }
+    .see-status { font-size: .88rem; color: var(--mute); }
+    .see-status.err { color: #e07070; }
+    .look { margin-top: .9rem; display: grid; gap: .75rem;
+      grid-template-columns: 1fr; }
+    @media (min-width: 520px) { .look { grid-template-columns: 1fr auto; align-items: start; } }
+    .pose-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; max-width: 14rem; }
+    .pose-grid button {
+      border: 1px solid #3a342c; background: #1a1612; color: var(--fg);
+      border-radius: 10px; padding: .55rem .35rem; font: 600 .85rem/1 inherit; cursor: pointer;
+    }
+    .pose-grid button:hover:not(:disabled) { border-color: var(--acc); }
+    .pose-grid button.on { background: #3a2818; border-color: var(--acc); color: #f0d2b0; }
+    .pose-grid button:disabled { opacity: .35; cursor: not-allowed; }
+    .dpad { display: grid; grid-template-columns: repeat(3, 2.4rem); gap: .35rem; justify-content: center; }
+    .dpad button {
+      width: 2.4rem; height: 2.4rem; border-radius: 10px; border: 1px solid #3a342c;
+      background: #1a1612; color: var(--fg); font: 600 1rem/1 inherit; cursor: pointer; padding: 0;
+    }
+    .dpad button:hover:not(:disabled) { border-color: var(--acc); }
+    .dpad .spacer { visibility: hidden; }
+    .look-meta { font-size: .78rem; color: var(--mute); margin-top: .35rem; }
+    .look h3 { margin: 0 0 .45rem; font: 600 .92rem/1.2 "IBM Plex Serif", Georgia, serif; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel" id="see-panel">
+      <h1>bruhOS</h1>
+      <p class="sub">Take a still — retune, then locate objects. Slow is fine; quality first.</p>
+      <div class="frame" id="frame">
+        <div class="placeholder" id="ph">No picture yet</div>
+        <img id="shot" alt="Camera still" hidden />
+      </div>
+      <div class="meta" id="cam-meta"></div>
+      <div class="chips" id="chips"></div>
+      <div class="look" id="look">
+        <div>
+          <h3>Look</h3>
+          <div class="pose-grid" id="pose-grid"></div>
+          <div class="look-meta" id="look-meta">Loading head poses…</div>
+        </div>
+        <div>
+          <h3>Nudge</h3>
+          <div class="dpad" id="dpad">
+            <span class="spacer"></span>
+            <button type="button" data-nudge="up" title="Up">▲</button>
+            <span class="spacer"></span>
+            <button type="button" data-nudge="left" title="Left">◀</button>
+            <button type="button" data-nudge="center" title="Center">●</button>
+            <button type="button" data-nudge="right" title="Right">▶</button>
+            <span class="spacer"></span>
+            <button type="button" data-nudge="down" title="Down">▼</button>
+            <span class="spacer"></span>
+          </div>
+        </div>
+      </div>
+      <div class="see-actions">
+        <button class="primary" id="snap" type="button">Take picture</button>
+        <span class="see-status" id="see-status">Idle</span>
+      </div>
+      <div class="stages" id="stages"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Talk</h2>
+      <p class="sub">Hold to talk. Conversation stays in context across turns.</p>
+      <div id="warn" class="warn"></div>
+      <button id="ptt" type="button">Hold to talk</button>
+      <div class="row">
+        <label class="file">Upload audio<input id="file" type="file" accept="audio/*,.wav,.webm,.mp4,.m4a,.ogg" hidden /></label>
+        <button id="reset" class="link" type="button">New conversation</button>
+        <span id="turns" class="note" style="margin:0">0 turns</span>
+      </div>
+      <div id="status" class="status">Idle</div>
+      <div id="log"></div>
+      <audio id="player" controls style="width:100%; margin-top:.5rem; display:none"></audio>
+      <p class="note">Reply audio: <a href="/tts.wav">/tts.wav</a></p>
+    </section>
+  </div>
+  <script>
+    /* ---- Head look controls ---- */
+    const poseGrid = document.getElementById("pose-grid");
+    const lookMeta = document.getElementById("look-meta");
+    let headBusy = false;
+
+    function renderHead(st) {
+      if (!st || !st.ok) {
+        lookMeta.textContent = (st && st.error) ? st.error : "Head unavailable";
+        poseGrid.innerHTML = "";
+        return;
+      }
+      const cur = (st.current && st.current.name) || "";
+      poseGrid.innerHTML = "";
+      for (const row of st.grid || []) {
+        for (const cell of row) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = cell.name;
+          b.disabled = !cell.available;
+          if (cell.name === cur) b.classList.add("on");
+          if (cell.available) {
+            b.addEventListener("click", () => headCmd({ pose: cell.name }));
+          }
+          poseGrid.appendChild(b);
+        }
+      }
+      const c = st.current || {};
+      lookMeta.textContent = (c.name ? c.name + " · " : "") +
+        "yaw " + c.yaw_us + " · pitch " + c.pitch_us +
+        " · nudge " + (st.nudge_us || 80) + "µs";
+    }
+
+    async function headCmd(body) {
+      if (headBusy) return;
+      headBusy = true;
+      lookMeta.textContent = "Moving + updating still…";
+      try {
+        const res = await fetch("/api/head", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.assign({ preview: true }, body)),
+        });
+        const st = await res.json();
+        if (!res.ok) throw new Error(st.error || res.statusText);
+        renderHead(st);
+        if (st.preview) {
+          const img = document.getElementById("shot");
+          const placeholder = document.getElementById("ph");
+          const url = st.preview + (st.preview.includes("?") ? "&" : "?") + "t=" + Date.now();
+          img.onload = () => { img.hidden = false; placeholder.hidden = true; };
+          img.onerror = () => { lookMeta.textContent = "Still failed to load (" + st.preview + ")"; };
+          img.src = url;
+          document.getElementById("chips").innerHTML = "";
+          document.getElementById("cam-meta").innerHTML =
+            "<span>preview only — tap <b>Take picture</b> to analyze</span>";
+        } else if (st.preview_error) {
+          lookMeta.textContent = (st.current && st.current.name ? st.current.name + " · " : "") +
+            "moved, but no still: " + st.preview_error;
+        }
+      } catch (e) {
+        lookMeta.textContent = String(e.message || e);
+      } finally {
+        headBusy = false;
+      }
+    }
+
+    document.getElementById("dpad").addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-nudge]");
+      if (!btn) return;
+      const d = btn.getAttribute("data-nudge");
+      if (d === "center") headCmd({ center: true });
+      else headCmd({ nudge: d });
+    });
+
+    fetch("/api/head", { cache: "no-store" })
+      .then(r => r.json())
+      .then(renderHead)
+      .catch(e => { lookMeta.textContent = String(e.message || e); });
+
+    /* ---- See (camera still + analysis) ---- */
+    const snapBtn = document.getElementById("snap");
+    const seeStatus = document.getElementById("see-status");
+    const stagesEl = document.getElementById("stages");
+    const shot = document.getElementById("shot");
+    const ph = document.getElementById("ph");
+    const camMeta = document.getElementById("cam-meta");
+    const chips = document.getElementById("chips");
+    let pollTimer = null;
+    let lastImgUrl = "";
+
+    function setSeeStatus(t, err) {
+      seeStatus.textContent = t;
+      seeStatus.className = "see-status" + (err ? " err" : "");
+    }
+
+    function renderStages(stages) {
+      stagesEl.innerHTML = "";
+      for (const s of stages || []) {
+        const row = document.createElement("div");
+        row.className = "stage " + (s.status || "pending");
+        const pct = s.status === "pending" ? 0 : (s.progress || 0);
+        row.innerHTML =
+          '<div class="mark"></div>' +
+          '<div class="label"><span></span><span class="sec"></span></div>' +
+          '<div class="bar"><i></i></div>' +
+          '<div class="detail"></div>';
+        row.querySelector(".label span").textContent = s.label || s.id;
+        row.querySelector(".sec").textContent = s.seconds ? s.seconds.toFixed(1) + "s" : "";
+        row.querySelector(".bar > i").style.width = pct + "%";
+        row.querySelector(".detail").textContent = s.detail || s.error || "";
+        stagesEl.appendChild(row);
+      }
+    }
+
+    function pickImage(job) {
+      const imgs = job.images || {};
+      // Only prefer overlay when we actually have detections (boxes drawn).
+      if (imgs.overlay && (job.detections || []).length) return imgs.overlay;
+      if (imgs.best) return imgs.best;
+      if (imgs.raw) return imgs.raw;
+      return "";
+    }
+
+    function showImage(url) {
+      if (!url) return;
+      const full = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+      if (full.split("?")[0] === lastImgUrl.split("?")[0] && jobImageKind(url) === jobImageKind(lastImgUrl)) {
+        // still bump cache when overlay replaces best
+      }
+      lastImgUrl = full;
+      shot.src = full;
+      shot.hidden = false;
+      ph.hidden = true;
+    }
+
+    function jobImageKind(url) {
+      if (url.includes("overlay")) return "overlay";
+      if (url.includes("best")) return "best";
+      return "raw";
+    }
+
+    function renderMeta(job) {
+      const cam = job.camera || {};
+      const m = cam.metrics || {};
+      const parts = [];
+      if (cam.score != null) parts.push("<span>score <b>" + Math.round(cam.score) + "</b></span>");
+      if (m.lap_var != null) parts.push("<span>lap <b>" + Math.round(m.lap_var) + "</b></span>");
+      if (m.mean != null) parts.push("<span>mean <b>" + Math.round(m.mean) + "</b></span>");
+      const settings = cam.settings || {};
+      const keys = Object.keys(settings);
+      if (keys.length) {
+        parts.push("<span>settings <b>" + keys.map(k => k + "=" + Math.round(settings[k])).join(", ") + "</b></span>");
+      } else if (cam.diagnosis && cam.diagnosis.length) {
+        parts.push("<span>diag <b>" + cam.diagnosis.join(", ") + "</b></span>");
+      }
+      camMeta.innerHTML = parts.join("");
+
+      chips.innerHTML = "";
+      const dets = job.detections || [];
+      const inv = job.inventory || [];
+      if (dets.length) {
+        for (const det of dets) {
+          const el = document.createElement("span");
+          el.className = "chip";
+          el.textContent = det.label + "  b=" + (det.bearing_deg >= 0 ? "+" : "") + Math.round(det.bearing_deg) + "°";
+          chips.appendChild(el);
+        }
+      } else {
+        for (const name of inv) {
+          const el = document.createElement("span");
+          el.className = "chip";
+          el.textContent = name + " (no box)";
+          chips.appendChild(el);
+        }
+      }
+    }
+
+    function applyJob(job) {
+      renderStages(job.stages);
+      renderMeta(job);
+      const url = pickImage(job);
+      if (url) showImage(url);
+      if (job.state === "running" || job.state === "queued") {
+        setSeeStatus("Working — " + ((job.stages || []).find(s => s.status === "running") || {}).label || "…");
+        snapBtn.disabled = true;
+      } else if (job.state === "done") {
+        setSeeStatus("Done");
+        snapBtn.disabled = false;
+      } else if (job.state === "error") {
+        setSeeStatus(job.error || "Failed", true);
+        snapBtn.disabled = false;
+      }
+    }
+
+    async function pollJob(id) {
+      try {
+        const res = await fetch("/api/see/" + id, { cache: "no-store" });
+        const job = await res.json();
+        if (!res.ok) throw new Error(job.error || res.statusText);
+        applyJob(job);
+        if (job.state === "running" || job.state === "queued") {
+          pollTimer = setTimeout(() => pollJob(id), 600);
+        } else {
+          pollTimer = null;
+        }
+      } catch (e) {
+        setSeeStatus(String(e.message || e), true);
+        snapBtn.disabled = false;
+        pollTimer = null;
+      }
+    }
+
+    snapBtn.addEventListener("click", async () => {
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      snapBtn.disabled = true;
+      setSeeStatus("Starting…");
+      stagesEl.innerHTML = "";
+      chips.innerHTML = "";
+      camMeta.innerHTML = "";
+      try {
+        const res = await fetch("/api/see", { method: "POST", body: "{}" });
+        const job = await res.json();
+        if (!res.ok) throw new Error(job.error || res.statusText);
+        applyJob(job);
+        pollJob(job.id);
+      } catch (e) {
+        setSeeStatus(String(e.message || e), true);
+        snapBtn.disabled = false;
+      }
+    });
+
+    /* ---- Talk (PTT) ---- */
+    const btn = document.getElementById("ptt");
+    const status = document.getElementById("status");
+    const warn = document.getElementById("warn");
+    const file = document.getElementById("file");
+    const resetBtn = document.getElementById("reset");
+    const turnsEl = document.getElementById("turns");
+    const log = document.getElementById("log");
+    const player = document.getElementById("player");
+
+    function addBubble(who, text, tony) {
+      const div = document.createElement("div");
+      div.className = "bubble" + (tony ? " tony" : "");
+      div.innerHTML = '<div class="who"></div><div class="body"></div>';
+      div.querySelector(".who").textContent = who;
+      div.querySelector(".body").textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    let stream = null, holding = false, recording = false;
+    let audioCtx = null, processor = null, source = null, mute = null, pcmChunks = [];
+
+    const insecure = !window.isSecureContext;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const canRec = !!(navigator.mediaDevices?.getUserMedia && AC);
+
+    function setStatus(t, cls) { status.textContent = t; status.className = "status" + (cls ? " " + cls : ""); }
+
+    if (insecure) {
+      warn.classList.add("show");
+      warn.innerHTML = "Safari blocks the mic on <b>http://</b>. Open <b>https://</b> and trust the cert, or upload a file.";
+      btn.disabled = !canRec;
+    } else if (!canRec) {
+      warn.classList.add("show");
+      warn.textContent = "This browser cannot record audio here. Upload a file instead.";
+      btn.disabled = true;
+    }
+
+    function mergeFloat32(chunks) {
+      let n = 0;
+      for (const c of chunks) n += c.length;
+      const out = new Float32Array(n);
+      let o = 0;
+      for (const c of chunks) { out.set(c, o); o += c.length; }
+      return out;
+    }
+
+    function downsample(input, inRate, outRate) {
+      if (outRate === inRate) return input;
+      const ratio = inRate / outRate;
+      const newLen = Math.max(1, Math.round(input.length / ratio));
+      const out = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        const start = Math.floor(i * ratio);
+        const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+        let sum = 0, count = 0;
+        for (let j = start; j < end; j++) { sum += input[j]; count++; }
+        out[i] = count ? sum / count : (input[start] || 0);
+      }
+      return out;
+    }
+
+    function encodeWav(float32, sampleRate) {
+      const n = float32.length;
+      const buffer = new ArrayBuffer(44 + n * 2);
+      const view = new DataView(buffer);
+      const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+      writeStr(0, "RIFF");
+      view.setUint32(4, 36 + n * 2, true);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, "data");
+      view.setUint32(40, n * 2, true);
+      let o = 44;
+      for (let i = 0; i < n; i++, o += 2) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      }
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+
+    async function ensureMic() {
+      if (stream) return stream;
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      });
+      return stream;
+    }
+
+    async function startWav() {
+      const s = await ensureMic();
+      pcmChunks = [];
+      audioCtx = new AC();
+      await audioCtx.resume();
+      source = audioCtx.createMediaStreamSource(s);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (ev) => {
+        if (!recording) return;
+        pcmChunks.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+      };
+      mute = audioCtx.createGain();
+      mute.gain.value = 0;
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(audioCtx.destination);
+      recording = true;
+    }
+
+    function stopWav() {
+      recording = false;
+      try { processor && processor.disconnect(); } catch (_) {}
+      try { source && source.disconnect(); } catch (_) {}
+      try { mute && mute.disconnect(); } catch (_) {}
+      const rate = audioCtx ? audioCtx.sampleRate : 48000;
+      const merged = mergeFloat32(pcmChunks);
+      pcmChunks = [];
+      const pcm16k = downsample(merged, rate, 16000);
+      if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+      processor = source = mute = null;
+      return encodeWav(pcm16k, 16000);
+    }
+
+    async function uploadBlob(blob, filename) {
+      setStatus("Listening…");
+      const res = await fetch("/api/ptt", {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "application/octet-stream", "X-Filename": filename },
+        body: blob,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      const blank = !data.text || data.text === "[BLANK_AUDIO]";
+      if (blank) {
+        setStatus("No speech detected", "err");
+        return;
+      }
+      addBubble("You", data.text, false);
+      if (data.reply) addBubble("Tony", data.reply, true);
+      turnsEl.textContent = (data.turns || 0) + " turns";
+      if (data.tts) {
+        player.style.display = "block";
+        player.src = data.tts + "?t=" + Date.now();
+        try { await player.play(); } catch (_) {}
+      }
+      setStatus(data.reply ? "Tony replied (context kept)" : "Got transcript, no LLM reply", data.reply ? "ok" : "err");
+    }
+
+    async function start() {
+      if (recording) return;
+      try {
+        await startWav();
+        btn.classList.add("hot");
+        btn.textContent = "Recording…";
+        setStatus("Recording…");
+      } catch (e) {
+        const msg = e.name === "NotAllowedError" ? "Mic permission denied." : String(e.message || e);
+        setStatus(msg + (insecure ? " Use https:// or upload a file." : ""), "err");
+      }
+    }
+
+    async function stop() {
+      if (!recording) return;
+      btn.classList.remove("hot");
+      btn.textContent = "Hold to talk";
+      try {
+        const blob = stopWav();
+        if (!blob.size || blob.size < 1000) { setStatus("Empty recording — hold longer", "err"); return; }
+        await uploadBlob(blob, "ptt.wav");
+      } catch (e) {
+        setStatus(String(e.message || e), "err");
+      }
+    }
+
+    btn.addEventListener("pointerdown", (e) => {
+      if (btn.disabled) return;
+      e.preventDefault();
+      btn.setPointerCapture?.(e.pointerId);
+      holding = true;
+      start();
+    });
+    btn.addEventListener("pointerup", (e) => {
+      if (!holding) return;
+      e.preventDefault();
+      holding = false;
+      stop();
+    });
+    btn.addEventListener("pointercancel", () => { if (holding) { holding = false; stop(); } });
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      if (recording && !holding) stop();
+    });
+
+    file.addEventListener("change", async () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      try { await uploadBlob(f, f.name || "upload.wav"); }
+      catch (e) { setStatus(String(e.message || e), "err"); }
+      file.value = "";
+    });
+
+    resetBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/reset", { method: "POST", body: "{}" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        log.innerHTML = "";
+        turnsEl.textContent = "0 turns";
+        player.style.display = "none";
+        setStatus("New conversation", "ok");
+      } catch (e) {
+        setStatus(String(e.message || e), "err");
+      }
+    });
+  </script>
+</body>
+</html>

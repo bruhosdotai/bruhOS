@@ -4,7 +4,10 @@ from bruhos.schemas import SkillCall, parse_call
 from bruhos.skills import SKILLS, SkillError, catalog_hash, validate
 from bruhos.skills.registry import positional_args
 
-V01 = {"look_at", "detect", "walk_toward", "follow_line", "grab", "release", "kick", "wave", "stand_up", "stop"}
+V01 = {
+    "look_at", "detect", "walk_toward", "go", "follow_line",
+    "grab", "release", "kick", "wave", "stand_up", "stop",
+}
 
 
 def test_whitelist_is_exactly_v01():

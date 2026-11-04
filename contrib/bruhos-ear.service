@@ -1,0 +1,23 @@
+[Unit]
+Description=bruhOS ear (WonderEcho wake → listen → reply)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Sites/bruhOS
+Environment=PYTHONPATH=/root/Sites/bruhOS
+Environment=PYTHONUNBUFFERED=1
+# Mute Mic playback (sidetone) — Mic@80% was causing plug-in feedback screech
+ExecStartPre=-/root/Sites/bruhOS/contrib/wonderecho-alsa.sh
+# Prefer gitignored local config (private endpoint); fall back to committed example.
+ExecStart=/bin/bash -c 'CFG=/root/Sites/bruhOS/configs/zerollama.local.toml; [ -f "$CFG" ] || CFG=/root/Sites/bruhOS/configs/zerollama.toml; exec /root/Sites/bruhOS/.venv/bin/bruhos ear --config "$CFG"'
+Restart=on-failure
+RestartSec=5
+# Use the journal so `journalctl -u bruhos-ear -f` works
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bruhos-ear
+
+[Install]
+WantedBy=multi-user.target

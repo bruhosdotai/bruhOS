@@ -1,4 +1,4 @@
-"""v0.1 whitelist: look_at detect walk_toward follow_line grab release kick wave stand_up stop."""
+"""v0.1 whitelist: look_at detect walk_toward go follow_line grab release kick wave stand_up stop."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from .registry import Arg, SkillContext, SkillSpec, skill
 AIM_DEG = 8.0
 WALK_AIM_DEG = 12.0
 LINE_DEADBAND = 0.2
+GO_MAX_STEPS = 6
+GO_PRIMITIVES = {
+    "forward": "forward",
+    "left": "turn_left",
+    "right": "turn_right",
+}
 
 
 def _fallen(obs: Observation) -> Outcome | None:
@@ -75,9 +81,14 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
     return Outcome(Status.FAILED, "aim timeout")
 
 
-@skill(SkillSpec("walk_toward", "Walk until the target is within reach.",
-                 {"target": Arg(str, required=True),
-                  "stop_distance_m": Arg(float, default=0.1)}, positional="target"))
+@skill(SkillSpec(
+    "walk_toward",
+    "Walk until a seen object is within reach. Needs a visual target. "
+    "For open-space gait with no object (\"walk forward\"), use go instead.",
+    {"target": Arg(str, required=True),
+     "stop_distance_m": Arg(float, default=0.1)},
+    positional="target",
+))
 def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
     target, stop_at = args["target"], args["stop_distance_m"]
     err, obs = _scan(ctx, target)
@@ -102,6 +113,43 @@ def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
             ctx.body.act("forward")
         obs = ctx.body.observe()
     return Outcome(Status.FAILED, "walk timeout")
+
+
+@skill(SkillSpec(
+    "go",
+    "Take a few gait steps with no vision target. Use for \"walk forward\", "
+    "\"turn left\", \"turn right\". Do not invent a walk_toward target. "
+    f"steps hard-capped at {GO_MAX_STEPS}. No backward primitive.",
+    {
+        "direction": Arg(str, required=True, choices=("forward", "left", "right"),
+                         doc="forward | left | right"),
+        "steps": Arg(int, default=3, doc=f"1..{GO_MAX_STEPS} gait cycles"),
+    },
+    positional="direction",
+))
+def go(ctx: SkillContext, args: dict) -> Outcome:
+    direction = args["direction"]
+    prim = GO_PRIMITIVES[direction]
+    steps = max(1, min(int(args["steps"]), GO_MAX_STEPS))
+    done = 0
+    for _ in range(steps):
+        if ctx.should_stop():
+            return Outcome(Status.STOPPED, "stop requested",
+                           {"direction": direction, "steps": done})
+        obs = ctx.body.observe()
+        if (f := _fallen(obs)):
+            f.data = {**(f.data or {}), "direction": direction, "steps": done}
+            return f
+        if not ctx.body.act(prim):
+            return Outcome(Status.FAILED, f"body could not run {prim}",
+                           {"direction": direction, "steps": done})
+        done += 1
+        obs = ctx.body.observe()
+        if (f := _fallen(obs)):
+            f.data = {**(f.data or {}), "direction": direction, "steps": done}
+            return f
+    return Outcome(Status.OK, f"went {direction} {done} steps",
+                   {"direction": direction, "steps": done})
 
 
 @skill(SkillSpec("follow_line", "Follow a floor line for up to `steps` gait cycles.",

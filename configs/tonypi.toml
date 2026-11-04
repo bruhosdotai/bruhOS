@@ -3,13 +3,13 @@
 
 [body]
 name = "tonypi"
-sdk_path = "/home/pi/TonyPi"                 # import hiwonder.ActionGroupControl
-action_path = "/home/pi/TonyPi/ActionGroups"
+sdk_path = "/home/pi/TonyPi/HiwonderSDK"     # import hiwonder.ActionGroupControl
+action_path = "/home/pi/TonyPi/ActionGroups/"
 turn_step_deg = 15.0                         # calibrate: measure one turn_*_small_step
 
 [actions]
 stand = "stand"
-forward = "go_forward"
+forward = "go_forward_one_step"          # one gait cycle; go_forward only plays *_start
 turn_left = "turn_left_small_step"
 turn_right = "turn_right_small_step"
 grab = "move_up"                             # arms lift a sponge block (Transport.py)
@@ -29,12 +29,40 @@ width = 640
 height = 480
 hfov_deg = 62.0
 
+[head]
+sdk_path = "/home/pi/TonyPi"
+servo_config = "/home/pi/TonyPi/servo_config.yaml"
+yaw_offset_us = 400
+yaw_sign = -1
+pitch_max_us = 1800
+move_ms = 500
+
 [imu]
 enabled = true
 bus = 1
 address = "0x68"
 fall_deg = 55.0
 forward_sign = 1
+
+[roam]
+step_m = 0.05
+cell_m = 0.05
+progress_ratio = 0.4
+sample_gap_s = 0.12
+max_steps = 40
+max_bumps = 15
+turn_min_deg = 60.0
+turn_max_deg = 150.0
+fall_forward_deg = 15.0
+fall_back_deg = 160.0
+wifi_iface = "wlan0"
+wifi_n = 2.5
+# Vertical depth: nod feet (blockers) then ahead (range). ~15s×2 on Pi — every N steps.
+use_depth = true
+depth_every = 3
+feet_block_m = 0.28
+ahead_block_m = 0.45
+depth_input_size = 252
 
 [speech]
 language = "en"

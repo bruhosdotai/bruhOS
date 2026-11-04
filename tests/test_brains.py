@@ -56,6 +56,23 @@ def test_openai_request_shape():
     assert payload["response_format"] == {"type": "json_object"}
 
 
+def test_openai_retries_without_json_mode_on_400():
+    import urllib.error
+    calls = []
+
+    def transport(url, headers, body, timeout):
+        payload = json.loads(body)
+        calls.append(payload)
+        if "response_format" in payload:
+            raise urllib.error.HTTPError(url, 400, "bad", hdrs=None, fp=None)
+        return json.dumps({"choices": [{"message": {"content": json.dumps(PLAN_JSON)}}]}).encode()
+
+    plan = OpenAICompatPlanner(base_url="http://h/v1", model="m", transport=transport).plan(
+        "Wave.", SimBody().observe(), [])
+    assert len(calls) == 2 and "response_format" in calls[0] and "response_format" not in calls[1]
+    assert plan[0].skill == "detect"
+
+
 def test_qwen_vl_attaches_frame():
     cap = []
     QwenVLPlanner(transport=fake_chat(cap), frame_provider=lambda: b"\xff\xd8jpeg").plan("Wave.", SimBody().observe(), [])
