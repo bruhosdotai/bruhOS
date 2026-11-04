@@ -19,6 +19,12 @@ class FixedPlanner(Planner):
         return list(self._plan)
 
 
+def test_unknown_primitive_returns_false_instead_of_raising():
+    body = SimBody()
+    assert body.act("jump") is False
+    assert body.act("") is False
+
+
 def test_put_red_in_box():
     body = SimBody()
     ep = Runtime(body, RulesPlanner()).run("Put the red one in the box.")
