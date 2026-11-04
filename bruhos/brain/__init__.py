@@ -9,6 +9,9 @@ from .base import IntegrationError, Planner, parse_plan
 
 def make_planner(name: str, **cfg: Any) -> Planner:
     if name == "rules":
+        if cfg:
+            raise ValueError(f"brain 'rules' takes no settings, got {sorted(cfg)}; "
+                             "remove them from the [brain] table or name the brain they belong to")
         from .adapters.rules import RulesPlanner
         return RulesPlanner()
     if name == "openai":
