@@ -70,6 +70,11 @@ class ElizaBridgeBody(Body):
             "turn_s": float(walk.get("turn_s", 1.0)),
             "heartbeat_s": float(walk.get("heartbeat_s", 0.25)),
         }
+        hb = self.walk["heartbeat_s"]
+        if not 0.0 < hb < 1.0:
+            raise ValueError(f"[walk] heartbeat_s must be in (0, 1) seconds, got {hb}; "
+                             "the bridge deadman stops motion after 1 s without a motion "
+                             "command, so a heartbeat at or above 1 s cannot keep a walk alive")
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self._halted = threading.Event()
         self._closed = threading.Event()
