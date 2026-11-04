@@ -64,6 +64,10 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if obj == "line":
+                # The line is the floor tape, not an object: no body can
+                # grab it, so there is no plan (like any impossible request).
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
