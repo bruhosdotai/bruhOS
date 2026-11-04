@@ -19,11 +19,30 @@ from typing import Any
 from bruhos import __version__
 
 
+# Every top-level table the code reads from an operator config file: this
+# module (brain/speech/trace), TonyPiBody (body/actions/camera/imu/perception)
+# and ElizaBridgeBody (body/actions/walk). The set is closed — no reader
+# iterates over unlisted tables — so an unlisted name can only be a typo, and
+# a typo silently discards every setting under it.
+_KNOWN_SECTIONS = frozenset({
+    "actions", "body", "brain", "camera", "imu",
+    "perception", "speech", "trace", "walk",
+})
+
+
 def _load_config(path: str | None) -> dict[str, Any]:
     if not path:
         return {}
     with open(path, "rb") as f:
-        return tomllib.load(f)
+        cfg = tomllib.load(f)
+    unknown = sorted(set(cfg) - _KNOWN_SECTIONS)
+    if unknown:
+        raise ValueError(
+            f"{path}: unknown config section(s) {unknown}; known sections are "
+            f"{sorted(_KNOWN_SECTIONS)} — settings under a misspelled section "
+            "name are silently ignored"
+        )
+    return cfg
 
 
 def _brain(name: str | None, cfg: dict[str, Any]):
