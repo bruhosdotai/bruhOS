@@ -37,7 +37,7 @@ class RulesPlanner(Planner):
 
         if has("stop", "halt", "freeze"):
             return [_c("stop")]
-        if has("stand up", "get up", "get back up"):
+        if has("stand up", "get up", "get back up", "stand back up"):
             return [_c("stand_up")]
 
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
