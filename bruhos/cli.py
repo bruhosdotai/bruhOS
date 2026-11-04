@@ -48,15 +48,28 @@ def _body(name: str, cfg: dict[str, Any], fall_prob: float, seed: int):
     raise SystemExit(f"unknown body {name!r} (sim | tonypi | eliza)")
 
 
+def _sinks(cfg: dict[str, Any], traces: str | None):
+    from bruhos.trace import ChainSink, IpfsSink, LocalSink, SinkDispatcher
+
+    trace = cfg.get("trace", {})
+    root = traces or trace.get("root", "traces")
+    builders = {"local": lambda: LocalSink(root), "ipfs": IpfsSink, "chain": ChainSink}
+    sinks = []
+    for name in trace.get("sinks", ["local"]):
+        if name not in builders:
+            raise SystemExit(f"unknown trace sink {name!r} (local | ipfs | chain)")
+        sinks.append(builders[name]())
+    return SinkDispatcher(sinks)
+
+
 def cmd_run(a: argparse.Namespace) -> int:
     from bruhos.runtime import Runtime
     from bruhos.speech import SpeechConfig
-    from bruhos.trace import LocalSink, SinkDispatcher
 
     cfg = _load_config(a.config)
     SpeechConfig(**cfg.get("speech", {}))
     body = _body(a.body, cfg, a.fall_prob, a.seed)
-    sinks = SinkDispatcher([LocalSink(a.traces or cfg.get("trace", {}).get("root", "traces"))])
+    sinks = _sinks(cfg, a.traces)
     rt = Runtime(body, _brain(a.brain, cfg), sinks)
     try:
         ep = rt.run(a.instruction)
