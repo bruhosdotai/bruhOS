@@ -112,8 +112,24 @@ class Runtime:
 
             if outcome.status is Status.FALLEN:
                 ep.falls += 1
-                if self._recover(ep, after) is None:
+                obs = self._recover(ep, after)
+                if obs is None:
                     return
+                if before.holding and not obs.holding:
+                    # The fall dropped the load, so the interrupted skill's
+                    # premise is gone: resuming it would walk empty-handed to
+                    # the box and only fail later at release. Replan instead.
+                    if replans >= self.cfg.max_replans:
+                        ep.end_reason = f"{call.skill} failed: fall dropped {before.holding}"
+                        return
+                    replans += 1
+                    history = [{"call": s.call, "outcome": s.outcome} for s in ep.steps if s.kind != "rejected"]
+                    new = self._plan(ep, obs, history)
+                    if not new:
+                        ep.end_reason = ep.end_reason or f"{call.skill} failed: fall dropped {before.holding}"
+                        return
+                    plan, i = new, 0
+                    continue
                 continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
