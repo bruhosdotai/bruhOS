@@ -40,3 +40,15 @@ def test_shorthand_parse():
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
+
+
+def test_numeric_args_rejected_for_string_params():
+    # A number is not a target name: str(123) == "123" can never match a
+    # detection, so the robot would burn a full scan revolution before failing.
+    with pytest.raises(SkillError):
+        validate(SkillCall("walk_toward", {"target": 123}))
+    with pytest.raises(SkillError):
+        validate(SkillCall("detect", {"target": 3.5}))
+    with pytest.raises(SkillError):
+        validate(parse_call("walk_toward(123)", positional_args()))
+    assert validate(SkillCall("walk_toward", {"target": "red_block"})).args["target"] == "red_block"

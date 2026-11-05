@@ -84,6 +84,10 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        if a.type is str and isinstance(v, (int, float)) and not isinstance(v, bool):
+            # A number is not a target name: str(123) == "123" can never match
+            # a detection, so the robot would burn a full scan before failing.
+            raise SkillError(f"{call.skill}.{k}: expected str, got {v!r}")
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:
