@@ -29,6 +29,34 @@ def test_recovery_reported_separately():
     assert 0 <= s["completion_rate"] <= 1
 
 
+def test_eval_command_fails_when_prompts_fail(monkeypatch):
+    """`bruhos eval` must exit non-zero when prompts fail, so CI can gate on it."""
+    import argparse
+
+    import bruhos.cli as cli
+    from bruhos.brain.base import Planner
+    from bruhos.cli import cmd_eval
+
+    class NoPlan(Planner):
+        name = "none"
+
+        def plan(self, instruction, obs, catalog):
+            return []
+
+    monkeypatch.setattr(cli, "_brain", lambda name, cfg: NoPlan())
+    rc = cmd_eval(argparse.Namespace(brain="none", config=None, fall_prob=0.0, seed=0))
+    assert rc == 1
+
+
+def test_eval_command_passes_when_prompts_pass():
+    import argparse
+
+    from bruhos.cli import cmd_eval
+
+    rc = cmd_eval(argparse.Namespace(brain="rules", config=None, fall_prob=0.0, seed=0))
+    assert rc == 0
+
+
 def test_english_is_default():
     assert SpeechConfig().language == "en"
 
