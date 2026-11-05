@@ -3,6 +3,7 @@ from bruhos.runtime import Runtime
 from bruhos.sim.kinematic import SimBody
 from bruhos.trace import (ChainSink, LEROBOT_FEATURES, LocalSink, load_episode, merkle_root,
                           to_lerobot_frames, verify_episode)
+from bruhos.trace.sinks import SinkDispatcher
 
 
 def _episode():
@@ -47,3 +48,20 @@ def test_lerobot_frames_match_features():
         assert len(f["action"]) == LEROBOT_FEATURES["action"]["shape"][0]
         assert f["frame_index"] == i and f["episode_index"] == 3 and f["task"] == ep.instruction
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
+
+
+def test_dispatcher_flush_after_close_reports_success(tmp_path):
+    d = SinkDispatcher([LocalSink(tmp_path)])
+    d.submit(_episode())
+    d.close()
+    assert d.flush(2)
+    assert len(d.receipts) == 1
+
+
+def test_dispatcher_submit_after_close_raises(tmp_path):
+    import pytest
+
+    d = SinkDispatcher([LocalSink(tmp_path)])
+    d.close()
+    with pytest.raises(RuntimeError):
+        d.submit(_episode())
