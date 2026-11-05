@@ -88,7 +88,7 @@ def cmd_eval(a: argparse.Namespace) -> int:
         why = "" if r.passed else f"  ({r.end_reason}; unmet: {', '.join(r.failed_checks)})"
         print(f"  {mark}  {r.text:<40} {' > '.join(r.plan) or '-'}{extra}{why}")
     print(json.dumps(report.summary(), indent=2))
-    return 0
+    return 0 if all(r.passed for r in report.results) else 1
 
 
 def cmd_skills(a: argparse.Namespace) -> int:
