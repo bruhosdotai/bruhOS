@@ -84,6 +84,10 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        if a.type in (int, float) and isinstance(v, bool):
+            raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}")
+        if a.type is int and isinstance(v, float) and not v.is_integer():
+            raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}")
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:

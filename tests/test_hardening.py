@@ -116,3 +116,25 @@ def test_dashboard_refuses_foreign_host_headers(dashboard, host):
 @pytest.mark.parametrize("host", ["127.0.0.1:{port}", "localhost:{port}", "127.0.0.1:8876", "[::1]:{port}"])
 def test_dashboard_answers_loopback_and_ssh_tunnel(dashboard, host):
     assert _status(dashboard, host.format(port=dashboard)) == 200
+
+
+@pytest.mark.parametrize("bad", [True, False])
+def test_bool_is_rejected_for_int_args(bad):
+    with pytest.raises(SkillError):
+        validate(SkillCall("follow_line", {"steps": bad}))
+
+
+@pytest.mark.parametrize("bad", [True, False])
+def test_bool_is_rejected_for_float_args(bad):
+    with pytest.raises(SkillError):
+        validate(SkillCall("walk_toward", {"target": "box", "stop_distance_m": bad}))
+
+
+def test_fractional_float_is_rejected_for_int_args():
+    with pytest.raises(SkillError):
+        validate(SkillCall("follow_line", {"steps": 2.9}))
+
+
+def test_integral_float_and_string_still_coerce_for_int_args():
+    assert validate(SkillCall("follow_line", {"steps": 20.0})).args["steps"] == 20
+    assert validate(SkillCall("follow_line", {"steps": "20"})).args["steps"] == 20
