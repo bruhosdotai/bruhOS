@@ -93,3 +93,17 @@ def test_failed_sink_does_not_crash():
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
+
+
+def test_fall_while_carrying_replans_instead_of_resuming_empty_handed():
+    # Locomotion step 20 is inside the walk_toward(box) that carries the block:
+    # the fall drops it, so resuming that walk would reach the box empty-handed
+    # and only fail later at release ("hand empty").
+    body = SimBody(falls_at={20})
+    ep = Runtime(body, RulesPlanner()).run("Put the blue block in the box.")
+    assert ep.falls == 1 and ep.recoveries == 1
+    kinds = [s.kind for s in ep.steps]
+    i = kinds.index("recovery")
+    assert ep.steps[i + 1].call["skill"] == "detect", "must replan, not resume the carry walk"
+    assert not any(s.outcome["detail"] == "hand empty" for s in ep.steps)
+    assert ep.success and "in_box:blue_block" in body.world.events
