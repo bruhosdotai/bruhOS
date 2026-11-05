@@ -84,6 +84,14 @@ def validate(call: SkillCall) -> SkillCall:
                 out[k] = a.default
             continue
         v = call.args[k]
+        if a.type is str:
+            if isinstance(v, (bool, list, dict, set, tuple)):
+                raise SkillError(f"{call.skill}.{k}: expected str, got {type(v).__name__}")
+            if v is None:
+                if a.required:
+                    raise SkillError(f"{call.skill}.{k}: expected str, got None")
+                out[k] = a.default
+                continue
         try:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:

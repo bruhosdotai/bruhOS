@@ -40,3 +40,16 @@ def test_shorthand_parse():
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
+
+
+def test_string_args_validation():
+    with pytest.raises(SkillError, match=r"walk_toward\.target: expected str, got None"):
+        validate(SkillCall("walk_toward", {"target": None}))
+    with pytest.raises(SkillError, match=r"walk_toward\.target: expected str, got bool"):
+        validate(SkillCall("walk_toward", {"target": True}))
+    with pytest.raises(SkillError, match=r"walk_toward\.target: expected str, got list"):
+        validate(SkillCall("walk_toward", {"target": ["red_block"]}))
+    with pytest.raises(SkillError, match=r"walk_toward\.target: expected str, got dict"):
+        validate(SkillCall("walk_toward", {"target": {"name": "red_block"}}))
+
+    assert validate(SkillCall("detect", {"target": None})).args.get("target") is None
