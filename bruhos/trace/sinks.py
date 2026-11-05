@@ -94,16 +94,23 @@ class SinkDispatcher:
 
     def __init__(self, sinks: list[Sink]):
         self.sinks = sinks
+        self._closed = False
         self.receipts: list[tuple[str, str, dict[str, Any] | str]] = []
         self._q: queue.Queue[Episode | None] = queue.Queue()
         self._t = threading.Thread(target=self._run, name="bruhos-sinks", daemon=True)
         self._t.start()
 
     def submit(self, ep: Episode) -> None:
+        if self._closed:
+            raise RuntimeError("SinkDispatcher is closed")
         self._q.put(ep)
 
     def _run(self) -> None:
-        while (ep := self._q.get()) is not None:
+        while True:
+            ep = self._q.get()
+            if ep is None:
+                self._q.task_done()
+                return
             for s in self.sinks:
                 try:
                     self.receipts.append((ep.episode_id, s.name, s.emit(ep)))
@@ -118,4 +125,7 @@ class SinkDispatcher:
         return done.wait(timeout)
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         self._q.put(None)
