@@ -43,6 +43,36 @@ def test_follow_line_is_bounded_by_the_step_budget():
     assert body.acts == 50
 
 
+class VanishingLine(Body):
+    """The line is visible once, far right of center, then leaves view after the first turn."""
+
+    name = "vanishing_line"
+    turn_step_deg = 15.0
+
+    def __init__(self):
+        self.looks = 0
+
+    def observe(self):
+        self.looks += 1
+        visible = self.looks == 1
+        return Observation(t=0, frame=self.looks, objects=[], imu=Imu(),
+                           line=LineReading(visible=visible, offset=0.9))
+
+    def act(self, primitive):
+        return True
+
+    def halt(self):
+        pass
+
+
+def test_follow_line_lost_before_any_step_is_not_success():
+    # Same condition as "no line in view" at entry (FAILED), one turn later: the
+    # robot followed zero steps, so the run must not certify "end of line".
+    out = run_skill(SkillContext(VanishingLine(), max_steps=50), SkillCall("follow_line", {"steps": 5}))
+    assert out.status is Status.FAILED
+    assert out.data["steps"] == 0
+
+
 @pytest.mark.parametrize("bad", ["nan", "inf", "-inf", float("nan")])
 def test_non_finite_numbers_are_rejected(bad):
     with pytest.raises(SkillError):
