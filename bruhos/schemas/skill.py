@@ -55,6 +55,34 @@ class Outcome:
 _CALL = re.compile(r"^\s*([a-z_][a-z0-9_]*)\s*(?:\((.*)\))?\s*$")
 
 
+def _reject_unquoted_parens(inner: str, text: str) -> None:
+    """Reject parens inside the argument list that are not inside quotes.
+
+    The call regex is greedy, so without this ``walk_toward(red_block))`` parses
+    as target ``"red_block)"`` -- a target that can never match, burning a full
+    scan revolution before failing. A paren inside a quoted value is data, not
+    structure, so it stays accepted; an unterminated quote is left alone (the
+    existing quote stripping already repairs that case).
+    """
+    quote: str | None = None
+    escaped = False
+    for ch in inner:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and quote is not None:
+            escaped = True
+            continue
+        if quote is not None:
+            if ch == quote:
+                quote = None
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch in ("(", ")"):
+            raise ValueError(f"unbalanced parentheses in skill call: {text!r}")
+
+
 def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall:
     """Parse planner shorthand such as ``walk_toward(red_block)`` or ``kick(foot=left)``.
 
@@ -64,6 +92,7 @@ def parse_call(text: str, positional: dict[str, str] | None = None) -> SkillCall
     if not m:
         raise ValueError(f"cannot parse skill call: {text!r}")
     name, inner = m.group(1), (m.group(2) or "").strip()
+    _reject_unquoted_parens(inner, text)
     args: dict[str, Any] = {}
     if inner:
         for part in (p.strip() for p in inner.split(",")):
