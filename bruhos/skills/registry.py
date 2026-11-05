@@ -23,6 +23,7 @@ class Arg:
     choices: tuple[Any, ...] | None = None
     default: Any = None
     doc: str = ""
+    minimum: Any = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,8 @@ def validate(call: SkillCall) -> SkillCall:
             raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}") from e
         if isinstance(v, float) and not math.isfinite(v):
             raise SkillError(f"{call.skill}.{k}: must be a finite number, got {v!r}")
+        if a.minimum is not None and v < a.minimum:
+            raise SkillError(f"{call.skill}.{k}: must be >= {a.minimum}, got {v!r}")
         if a.choices and v not in a.choices:
             raise SkillError(f"{call.skill}.{k}: {v!r} not in {list(a.choices)}")
         out[k] = v
