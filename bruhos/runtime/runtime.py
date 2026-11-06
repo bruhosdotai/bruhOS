@@ -18,6 +18,37 @@ from bruhos.trace.sinks import SinkDispatcher
 
 log = logging.getLogger(__name__)
 
+# Skills that search for an object. A held object is not in the observation,
+# so a plan made only of these plus grab cannot see what the hand already has.
+_FETCH_APPROACH = {"detect", "look_at", "walk_toward"}
+
+
+def _name_tokens(name: str) -> set[str]:
+    return {t for t in name.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
+
+
+def _holding_matches(holding: str, target: str) -> bool:
+    tokens = _name_tokens(target)
+    return bool(tokens) and tokens <= _name_tokens(holding)
+
+
+def _fetch_already_held(plan: list[SkillCall], holding: str | None) -> bool:
+    """A pure pickup of the object already in the hand.
+
+    Delivery plans continue after grab (walk to the box, release) and are
+    not this case. A grab with no named approach is not either: the hand
+    might be holding something else.
+    """
+    if not holding or len(plan) < 2 or plan[-1].skill != "grab":
+        return False
+    approach = plan[:-1]
+    if any(call.skill not in _FETCH_APPROACH for call in approach):
+        return False
+    targets = [call.args.get("target") for call in approach if call.args.get("target")]
+    if not targets or any(not isinstance(target, str) for target in targets):
+        return False
+    return all(_holding_matches(holding, target) for target in targets)
+
 
 @dataclass
 class RuntimeConfig:
@@ -86,6 +117,13 @@ class Runtime:
         ep.plan.extend(c.to_dict() for c in plan)
         return plan
 
+    def _complete_held_fetch(self, ep: Episode, plan: list[SkillCall], obs: Observation) -> bool:
+        if not _fetch_already_held(plan, obs.holding):
+            return False
+        ep.success = True
+        ep.end_reason = f"already holding {obs.holding}"
+        return True
+
     def _run(self, ep: Episode) -> None:
         obs = self.body.observe()
         if obs.imu.fallen:
@@ -97,6 +135,8 @@ class Runtime:
             return
         if not plan:
             ep.end_reason = "no plan for instruction"
+            return
+        if self._complete_held_fetch(ep, plan, obs):
             return
 
         replans, i = 0, 0
@@ -128,6 +168,8 @@ class Runtime:
                 new = self._plan(ep, after, history)
                 if not new:
                     ep.end_reason = ep.end_reason or f"{call.skill} failed: {outcome.detail}"
+                    return
+                if self._complete_held_fetch(ep, new, after):
                     return
                 plan, i = new, 0
                 continue
