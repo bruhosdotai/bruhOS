@@ -8,6 +8,7 @@ from bruhos.brain.adapters.lfm3_omni import LFM3OmniPlanner, plan_schema
 from bruhos.brain.adapters.lerobot_policy import LeRobotPolicyPlanner
 from bruhos.brain.adapters.openai import OpenAICompatPlanner
 from bruhos.brain.adapters.qwen_vl import QwenVLPlanner
+from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.runtime import Runtime
 from bruhos.sim.kinematic import SimBody
 
@@ -117,3 +118,57 @@ def test_joint_chunk_rejected_by_runtime_not_executed():
 
 def test_fenced_json_parses():
     assert len(parse_plan("```json\n" + json.dumps(PLAN_JSON) + "\n```")) == 5
+
+
+def _rules_run(instruction: str):
+    body = SimBody()
+    return Runtime(body, RulesPlanner()).run(instruction), body
+
+
+def _bearing(body: SimBody, name: str) -> float:
+    return abs(body.world.relative(body.world.get(name))[1])
+
+
+def test_rules_landmark_color_does_not_rename_the_ball():
+    """'Kick the ball next to the red block' used to walk toward red_ball, which is not in the scene."""
+    ep, body = _rules_run("Kick the ball next to the red block.")
+    assert ep.success, ep.end_reason
+    assert ep.plan[0]["args"]["target"] == "ball"
+    assert "kicked:yellow_ball" in body.world.events
+
+
+def test_rules_landmark_does_not_replace_the_box():
+    """'Face the box next to the ball' used to look at the ball and report success."""
+    ep, body = _rules_run("Face the box next to the ball.")
+    assert ep.success, ep.end_reason
+    assert [c["skill"] for c in ep.plan] == ["look_at"]
+    assert ep.plan[0]["args"]["target"] == "box"
+    assert _bearing(body, "box") <= 8
+
+
+def test_rules_landmark_color_does_not_rename_a_look_target():
+    ep, body = _rules_run("Look at the ball beside the green block.")
+    assert ep.success, ep.end_reason
+    assert ep.plan[0]["args"]["target"] == "ball"
+    assert _bearing(body, "yellow_ball") <= 8
+
+
+def test_rules_single_color_still_binds_to_its_noun():
+    ep, body = _rules_run("Look at the block that is green.")
+    assert ep.success, ep.end_reason
+    assert ep.plan[0]["args"]["target"] == "green_block"
+    assert _bearing(body, "green_block") <= 8
+
+
+def test_rules_keeps_the_objects_own_color_before_a_landmark():
+    ep, body = _rules_run("Kick the yellow ball next to the blue block.")
+    assert ep.success, ep.end_reason
+    assert ep.plan[0]["args"]["target"] == "yellow_ball"
+    assert "kicked:yellow_ball" in body.world.events
+
+
+def test_rules_landmark_preposition_without_an_object_is_the_destination():
+    ep, body = _rules_run("Walk near the box.")
+    assert ep.success, ep.end_reason
+    assert ep.plan[0]["args"]["target"] == "box"
+    assert body.world.relative(body.world.get("box"))[0] <= 0.15

@@ -11,10 +11,26 @@ from bruhos.schemas import Observation, SkillCall
 COLORS = {"red", "blue", "green", "yellow", "black", "white", "orange", "purple"}
 NOUNS = {"block": "block", "cube": "block", "brick": "block", "box": "box", "bin": "box",
          "basket": "box", "ball": "ball", "line": "line"}
+_OBJECT_WORDS = COLORS | set(NOUNS)
+# "the ball next to the red block": the color belongs to the landmark, not the ball.
+_LANDMARK = re.compile(
+    r"\b(?:next to|in front of|closer to|close to|besides?|behind|nearest|near|by)\b")
+
+
+def _object_text(text: str) -> str:
+    """Keep the object named before a landmark. The planner has no map, so a later
+    noun must not rename it ("ball next to the red block" is the ball, not a red ball)."""
+    m = _LANDMARK.search(text.lower())
+    if not m:
+        return text
+    head = text[:m.start()]
+    if set(re.findall(r"[a-z]+", head.lower())) & _OBJECT_WORDS:
+        return head
+    return text
 
 
 def _target(text: str) -> str | None:
-    words = re.findall(r"[a-z]+", text.lower())
+    words = re.findall(r"[a-z]+", _object_text(text).lower())
     color = next((w for w in words if w in COLORS), None)
     nouns = [NOUNS[w] for w in words if w in NOUNS]
     noun = next((n for n in nouns if n != "box"), "box" if "box" in nouns else None)
