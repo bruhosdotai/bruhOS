@@ -43,6 +43,10 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            if obj is not None and (obj == "ball" or obj.endswith("_ball")):
+                # The ball cannot be grabbed (the sim's grab primitive refuses
+                # it by construction), so there is no plan that delivers it.
+                return []
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
@@ -64,6 +68,11 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if obj == "ball" or obj.endswith("_ball"):
+                # The ball cannot be grabbed (the sim's grab primitive refuses
+                # it by construction; balls are kicked, not carried), so there
+                # is no plan (like any impossible request).
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
