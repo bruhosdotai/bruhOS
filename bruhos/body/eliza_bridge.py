@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bruhos._net import require_secure
-from bruhos.body.base import PRIMITIVES, Body
+from bruhos.body.base import PRIMITIVES, Body, grabbed_name
 from bruhos.schemas import Detection, Imu, Observation
 
 WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
@@ -159,6 +159,12 @@ class ElizaBridgeBody(Body):
     def act(self, primitive: str) -> bool:
         if self._halted.is_set() or self._closed.is_set():
             return False
+        if primitive == "grab" and self.holding is not None:
+            return False
+        # Snapshot what the hand is about to close on BEFORE playing the
+        # action: the grasp itself drops the object from perception, so
+        # reading _entities after the play would see an empty scene.
+        name = grabbed_name([to_detection(e) for e in self._entities]) if primitive == "grab" else None
         with self._lock:
             self._deadman.clear()
             try:
@@ -166,7 +172,10 @@ class ElizaBridgeBody(Body):
             except BridgeError:
                 return False
         if ok and primitive == "grab":
-            self.holding = "object"
+            # No grasp sensor: name what the hand most plausibly closed on.
+            # The generic "object" never matches a named target in the
+            # skill-level held-target checks (#202/#204).
+            self.holding = name or "object"
         elif ok and primitive == "release":
             self.holding = None
         return ok

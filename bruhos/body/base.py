@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from bruhos.schemas import Observation
+from bruhos.schemas import Detection, Observation
 
 PRIMITIVES = (
     "stand",
@@ -19,6 +19,34 @@ PRIMITIVES = (
     "stand_up_front",
     "stand_up_back",
 )
+
+# Labels the hand cannot grasp (same set the sim excludes in _p_grab).
+UNGRASPABLE_LABELS = frozenset({"box", "ball"})
+
+# Hardware bodies name the grabbed object from the nearest seen object. This
+# bound is generous against the sim's 0.12 m reach: hardware distance comes
+# from blob size / bridge telemetry, so it is noisy, but anything beyond it is
+# clearly not what the hand closed on.
+GRAB_NAME_REACH_M = 0.30
+
+
+def grabbed_name(detections: list[Detection]) -> str | None:
+    """Name of the object the hand most plausibly closed on.
+
+    The nearest seen graspable object within reach, else None (the caller
+    keeps the generic ``"object"``). Hardware bodies have no grasp sensor, so
+    they record the name this way instead of losing it: the skill-level
+    held-target checks (#202/#204) parse the held name, and ``"object"``
+    never matches a named target.
+    """
+    best: tuple[float, Detection] | None = None
+    for d in detections:
+        if d.label in UNGRASPABLE_LABELS:
+            continue
+        dist = d.distance_m if d.distance_m is not None else 1e9
+        if dist <= GRAB_NAME_REACH_M and (best is None or dist < best[0]):
+            best = (dist, d)
+    return best[1].name if best else None
 
 
 class Body(ABC):
