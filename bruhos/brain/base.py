@@ -30,16 +30,38 @@ class Planner(ABC):
         return self.plan(instruction, obs, catalog)
 
 
+def _is_scalar_number(x: Any) -> bool:
+    return isinstance(x, numbers.Number) and not isinstance(x, bool)
+
+
 def _is_number_chunk(x: Any) -> bool:
-    if isinstance(x, numbers.Number) and not isinstance(x, bool):
+    if _is_scalar_number(x):
         return True
     return isinstance(x, (list, tuple)) and len(x) > 0 and all(_is_number_chunk(v) for v in x)
+
+
+def _contains_action_chunk(x: Any) -> bool:
+    """True when a list anywhere in ``x`` has a number as an element.
+
+    Skill arguments are objects, so a lone ``stop_distance_m`` does not match.
+    A servo vector does, including one sitting beside a skill plan or as an
+    extra field on a skill object. ``SkillCall.from_dict`` drops that field,
+    so without this check the chunk disappears and the skill still runs.
+    """
+    if isinstance(x, dict):
+        return any(_contains_action_chunk(v) for v in x.values())
+    if isinstance(x, (list, tuple)):
+        if any(_is_scalar_number(v) for v in x):
+            return True
+        return any(_contains_action_chunk(v) for v in x)
+    return False
 
 
 def guard_no_joint_actions(raw: Any) -> None:
     """Reject continuous action chunks (e.g. GR00T / VLA joint targets). Skills only."""
     items = raw.get("plan", raw.get("actions", raw)) if isinstance(raw, dict) else raw
-    if _is_number_chunk(items) or (isinstance(items, list) and any(_is_number_chunk(i) for i in items)):
+    top = _is_number_chunk(items) or (isinstance(items, list) and any(_is_number_chunk(i) for i in items))
+    if top or _contains_action_chunk(raw):
         raise IntegrationError("brain returned a continuous action chunk; bruhOS only executes whitelisted skills")
 
 
