@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bruhos._net import require_secure
-from bruhos.body.base import PRIMITIVES, Body
+from bruhos.body.base import PRIMITIVES, Body, action_basename, require_action_basenames
 from bruhos.schemas import Detection, Imu, Observation
 
 WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
@@ -71,6 +71,7 @@ class ElizaBridgeBody(Body):
             "heartbeat_s": float(walk.get("heartbeat_s", 0.25)),
         }
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
+        require_action_basenames(self.actions)
         self._halted = threading.Event()
         self._closed = threading.Event()
         self._lock = threading.Lock()
@@ -157,6 +158,8 @@ class ElizaBridgeBody(Body):
                            objects=[to_detection(e) for e in self._entities], imu=imu, holding=self.holding)
 
     def act(self, primitive: str) -> bool:
+        if primitive not in PRIMITIVES:
+            return False
         if self._halted.is_set() or self._closed.is_set():
             return False
         with self._lock:
@@ -173,7 +176,7 @@ class ElizaBridgeBody(Body):
 
     def _play(self, primitive: str) -> bool:
         group = self.actions.get(primitive)
-        if not group:
+        if not action_basename(group):
             return False
         if not self._send("action.play", {"name": group}).get("ok"):
             return False
