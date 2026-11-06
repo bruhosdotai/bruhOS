@@ -4,8 +4,9 @@ import time
 from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.brain.base import Planner
 from bruhos.runtime import Runtime
-from bruhos.schemas import SkillCall
+from bruhos.schemas import SkillCall, Status
 from bruhos.sim.kinematic import SimBody, World
+from bruhos.skills import SkillContext, run_skill
 from bruhos.trace import Sink, SinkDispatcher
 
 
@@ -93,3 +94,22 @@ def test_failed_sink_does_not_crash():
 def test_out_of_scope_instruction_has_no_plan():
     ep = Runtime(SimBody(), RulesPlanner()).run("Do a backflip.")
     assert not ep.success and ep.end_reason == "no plan for instruction"
+
+
+def test_walk_toward_target_already_held():
+    body = SimBody()
+    ctx = SkillContext(body)
+    assert run_skill(ctx, SkillCall("walk_toward", {"target": "red_block"})).status is Status.OK
+    assert run_skill(ctx, SkillCall("grab", {})).status is Status.OK
+    out = run_skill(ctx, SkillCall("walk_toward", {"target": "red_block"}))
+    assert out.status is Status.OK
+    assert out.data["holding"] == "red_block"
+
+
+def test_walk_toward_other_target_while_holding():
+    body = SimBody()
+    ctx = SkillContext(body)
+    assert run_skill(ctx, SkillCall("walk_toward", {"target": "red_block"})).status is Status.OK
+    assert run_skill(ctx, SkillCall("grab", {})).status is Status.OK
+    out = run_skill(ctx, SkillCall("walk_toward", {"target": "blue_block"}))
+    assert out.status is Status.OK
