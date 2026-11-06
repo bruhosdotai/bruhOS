@@ -13,8 +13,8 @@ import threading
 import time
 from typing import Any
 
-from bruhos.body.base import PRIMITIVES, Body
-from bruhos.schemas import Imu, LineReading, Observation
+from bruhos.body.base import PRIMITIVES, Body, grabbed_name
+from bruhos.schemas import Detection, Imu, LineReading, Observation
 
 SDK_MODULES = ("hiwonder.ActionGroupControl", "HiwonderSDK.ActionGroupControl", "ActionGroupControl")
 
@@ -45,7 +45,7 @@ class TonyPiBody(Body):
         self._halted = threading.Event()
         self.frame = 0
         self.holding: str | None = None
-        self._last_seen: dict[str, Any] = {}
+        self._last_objects: list[Detection] = []
         self._setup_sensors(cfg)
 
     def _setup_sensors(self, cfg: dict[str, Any]) -> None:
@@ -77,11 +77,14 @@ class TonyPiBody(Body):
                 objects = self.detector.detect(frame)
                 line = self.line.read(frame)
         imu = self.imu.read() if self.imu else Imu()
+        self._last_objects = objects
         return Observation(t=round(time.monotonic(), 3), frame=self.frame, objects=objects,
                            imu=imu, line=line, holding=self.holding)
 
     def act(self, primitive: str) -> bool:
         if self._halted.is_set():
+            return False
+        if primitive == "grab" and self.holding is not None:
             return False
         group = self.actions.get(primitive)
         if not group:
@@ -93,7 +96,10 @@ class TonyPiBody(Body):
             except TypeError:
                 self.agc.runActionGroup(group)
         if primitive == "grab":
-            self.holding = "object"
+            # No grasp sensor: name what the hand most plausibly closed on.
+            # The generic "object" never matches a named target in the
+            # skill-level held-target checks (#202/#204).
+            self.holding = grabbed_name(self._last_objects) or "object"
         elif primitive == "release":
             self.holding = None
         return True
