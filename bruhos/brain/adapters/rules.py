@@ -63,7 +63,7 @@ class RulesPlanner(Planner):
             return [_c("release")]
 
         obj = _target(s)
-        if has("pick up", "grab", "take", "get", "hold") and obj:
+        if has("pick up", "grab", "take", "get", "hold", "bring", "fetch", "carry") and obj:
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
