@@ -43,6 +43,10 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            if obj is not None and obj.endswith("_line"):
+                # A coloured line is still the floor tape (see the pick-up
+                # guard below): no body can grab it, so there is no plan.
+                return []
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
@@ -64,9 +68,10 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
-            if obj == "line":
+            if obj == "line" or obj.endswith("_line"):
                 # The line is the floor tape, not an object: no body can
                 # grab it, so there is no plan (like any impossible request).
+                # A colour prefix ("red line") names the same tape.
                 return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
