@@ -13,7 +13,7 @@ import threading
 import time
 from typing import Any
 
-from bruhos.body.base import PRIMITIVES, Body
+from bruhos.body.base import PRIMITIVES, Body, action_basename, require_action_basenames
 from bruhos.schemas import Imu, LineReading, Observation
 
 SDK_MODULES = ("hiwonder.ActionGroupControl", "HiwonderSDK.ActionGroupControl", "ActionGroupControl")
@@ -39,6 +39,7 @@ class TonyPiBody(Body):
         self.name = body.get("name", "tonypi")
         self.turn_step_deg = float(body.get("turn_step_deg", 15.0))
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
+        require_action_basenames(self.actions)
         self.agc = _load_agc(body.get("sdk_path"))
         self.action_path = body.get("action_path")
         self._lock = threading.Lock()
@@ -81,10 +82,10 @@ class TonyPiBody(Body):
                            imu=imu, line=line, holding=self.holding)
 
     def act(self, primitive: str) -> bool:
-        if self._halted.is_set():
+        if primitive not in PRIMITIVES or self._halted.is_set():
             return False
         group = self.actions.get(primitive)
-        if not group:
+        if not action_basename(group):
             return False
         with self._lock:
             kw = {"path": self.action_path} if self.action_path else {}
@@ -103,8 +104,9 @@ class TonyPiBody(Body):
         stop = getattr(self.agc, "stopAction", None) or getattr(self.agc, "stop_action_group", None)
         if stop:
             stop()
-        if self.actions.get("stand"):
-            threading.Thread(target=self.agc.runActionGroup, args=(self.actions["stand"],), daemon=True).start()
+        stand = self.actions.get("stand")
+        if action_basename(stand):
+            threading.Thread(target=self.agc.runActionGroup, args=(stand,), daemon=True).start()
 
     def resume(self) -> None:
         self._halted.clear()
