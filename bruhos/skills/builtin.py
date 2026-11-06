@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bruhos.schemas import Observation, Outcome, Status
+from bruhos.schemas import Detection, Observation, Outcome, Status
 
 from .registry import Arg, SkillContext, SkillSpec, skill
 
@@ -75,11 +75,28 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
     return Outcome(Status.FAILED, "aim timeout")
 
 
+def _held(obs: Observation, target: str) -> str | None:
+    """Name of the held object when it matches ``target`` (``red``/``block``/``red_block``), else None."""
+    if not obs.holding:
+        return None
+    color, _, label = obs.holding.partition("_")
+    if not label:
+        color, label = None, obs.holding
+    return obs.holding if Detection(label, color).matches(target) else None
+
+
 @skill(SkillSpec("walk_toward", "Walk until the target is within reach.",
                  {"target": Arg(str, required=True),
                   "stop_distance_m": Arg(float, default=0.1)}, positional="target"))
 def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
     target, stop_at = args["target"], args["stop_distance_m"]
+    obs = ctx.body.observe()
+    if (f := _fallen(obs)):
+        return f
+    if (held := _held(obs, target)):
+        # Already holding the target: it is in reach by definition, and the
+        # held object is invisible to observe(), so scanning would fail.
+        return Outcome(Status.OK, f"already holding {held}", {"holding": held, "distance_m": 0.0})
     err, obs = _scan(ctx, target)
     if err:
         return err
