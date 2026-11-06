@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bruhos.schemas import Observation, Outcome, Status
+from bruhos.schemas import Detection, Observation, Outcome, Status
 
 from .registry import Arg, SkillContext, SkillSpec, skill
 
@@ -37,6 +37,19 @@ def _scan(ctx: SkillContext, target: str) -> tuple[Outcome | None, Observation]:
     return Outcome(Status.FAILED, f"{target} not found after full scan"), obs
 
 
+def _held(obs: Observation, target: str) -> str | None:
+    """Name of the held object when it matches ``target`` (``red``/``block``/``red_block``), else None.
+
+    A held object is invisible to observe(), so a skill that scans for it can never find it.
+    """
+    if not obs.holding:
+        return None
+    color, _, label = obs.holding.partition("_")
+    if not label:
+        color, label = None, obs.holding
+    return obs.holding if Detection(label, color).matches(target) else None
+
+
 @skill(SkillSpec("detect", "Report visible objects; with `target`, scan until it is in view.",
                  {"target": Arg(str, doc="e.g. red_block, box, ball")}, positional="target"))
 def detect(ctx: SkillContext, args: dict) -> Outcome:
@@ -45,6 +58,12 @@ def detect(ctx: SkillContext, args: dict) -> Outcome:
         obs = ctx.body.observe()
         return _fallen(obs) or Outcome(Status.OK, f"{len(obs.objects)} objects",
                                        {"objects": [o.name for o in obs.objects]})
+    obs = ctx.body.observe()
+    if (f := _fallen(obs)):
+        return f
+    if (held := _held(obs, target)):
+        return Outcome(Status.OK, f"found {held}",
+                       {"found": held, "bearing_deg": 0.0, "distance_m": 0.0})
     err, obs = _scan(ctx, target)
     if err:
         return err
@@ -57,6 +76,12 @@ def detect(ctx: SkillContext, args: dict) -> Outcome:
                  {"target": Arg(str, required=True)}, positional="target"))
 def look_at(ctx: SkillContext, args: dict) -> Outcome:
     target = args["target"]
+    obs = ctx.body.observe()
+    if (f := _fallen(obs)):
+        return f
+    if (held := _held(obs, target)):
+        # Already holding the target: it is in hand, so it is faced by definition.
+        return Outcome(Status.OK, f"facing {held}", {"bearing_deg": 0.0})
     err, obs = _scan(ctx, target)
     if err:
         return err
