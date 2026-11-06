@@ -38,6 +38,18 @@ def test_fall_mid_skill_recovers_and_resumes():
     assert ep.success and "in_box:red_block" in body.world.events
 
 
+def test_episode_starting_fallen_counts_the_fall():
+    w = World.tabletop()
+    w.fallen, w.fell_forward = True, False
+    ep = Runtime(SimBody(w), RulesPlanner()).run("Stand up.")
+    assert ep.success
+    assert ep.steps[0].kind == "recovery"
+    assert ep.steps[0].outcome["detail"] == "recovered via stand_up_back"
+    assert ep.falls == 1, f"episode started fallen and recovered once, header says falls={ep.falls}"
+    assert ep.recoveries == 1
+    assert ep.header()["falls"] == 1
+
+
 def test_unregistered_skill_from_brain_never_reaches_body():
     body = SimBody()
     ep = Runtime(body, FixedPlanner([SkillCall("wave"), SkillCall("moonwalk")])).run("Dance.")

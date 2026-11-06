@@ -104,7 +104,6 @@ def run_eval(make_brain: Callable[[], Planner], fall_prob: float = 0.0, seed: in
         ep = Runtime(body, brain, config=RuntimeConfig()).run(p["text"])
         failed = [e for e in p["expect"] if not check(e, ep, world)]
         recovered = sum(1 for s in ep.steps if s.kind == "recovery" and s.outcome["status"] == "ok")
-        initial_fall = 1 if p.get("world", {}).get("fallen") else 0
         results.append(PromptResult(p["text"], not failed, ep.end_reason,
-                                    [f"{c['skill']}" for c in ep.plan], ep.falls + initial_fall, recovered, failed))
+                                    [f"{c['skill']}" for c in ep.plan], ep.falls, recovered, failed))
     return EvalReport(brain=make_brain().name, fall_prob=fall_prob, seed=seed, results=results)

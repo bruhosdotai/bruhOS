@@ -22,6 +22,16 @@ def test_rules_baseline_on_sim():
     assert r.completion_rate == 1.0, [x for x in r.results if not x.passed]
 
 
+def test_eval_counts_an_initial_fall_once():
+    prompts = [{"text": "Stand up.", "expect": ["event:stood_up", "success"],
+                "world": {"fallen": True, "fell_forward": False}}]
+    r = run_eval(RulesPlanner, prompts=prompts)
+    assert r.results[0].passed
+    assert r.results[0].falls == 1
+    assert r.results[0].recovered == 1
+    assert r.summary()["recovery_rate"] == 1.0
+
+
 def test_recovery_reported_separately():
     r = run_eval(RulesPlanner, fall_prob=0.05, seed=1)
     s = r.summary()

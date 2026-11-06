@@ -89,6 +89,7 @@ class Runtime:
     def _run(self, ep: Episode) -> None:
         obs = self.body.observe()
         if obs.imu.fallen:
+            ep.falls += 1
             obs = self._recover(ep, obs)
             if obs is None:
                 return
