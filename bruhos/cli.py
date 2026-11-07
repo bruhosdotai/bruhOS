@@ -92,9 +92,9 @@ def cmd_eval(a: argparse.Namespace) -> int:
 
 
 def cmd_skills(a: argparse.Namespace) -> int:
-    from bruhos.skills import CATALOG, catalog_hash
+    from bruhos.skills.registry import catalog, catalog_hash
 
-    print(json.dumps({"skillpack_hash": catalog_hash(), "skills": CATALOG}, indent=2))
+    print(json.dumps({"skillpack_hash": catalog_hash(), "skills": catalog()}, indent=2))
     return 0
 
 
