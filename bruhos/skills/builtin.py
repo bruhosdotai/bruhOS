@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from bruhos.schemas import Observation, Outcome, Status
 
 from .registry import Arg, SkillContext, SkillSpec, skill
@@ -18,9 +20,11 @@ def _fallen(obs: Observation) -> Outcome | None:
 
 
 def _scan(ctx: SkillContext, target: str) -> tuple[Outcome | None, Observation]:
-    """Turn in place until ``target`` is in view. One full revolution at most."""
+    """Turn in place until ``target`` is in view, sweeping a full revolution."""
     obs = ctx.body.observe()
-    turns = int(360 / ctx.body.turn_step_deg)
+    # Round up: int() truncation stops short of a full revolution when the
+    # turn step does not divide 360 (3 turns of 100 degrees sweep 300).
+    turns = math.ceil(360 / ctx.body.turn_step_deg)
     for _ in range(turns):
         if (f := _fallen(obs)):
             return f, obs
@@ -146,10 +150,15 @@ def grab(ctx: SkillContext, args: dict) -> Outcome:
 
 @skill(SkillSpec("release", "Open the hand."))
 def release(ctx: SkillContext, args: dict) -> Outcome:
-    before = ctx.body.observe().holding
+    obs = ctx.body.observe()
+    if (f := _fallen(obs)):
+        return f
+    if obs.holding is None:
+        return Outcome(Status.FAILED, "hand empty")
+    before = obs.holding
     if not ctx.body.act("release"):
         obs = ctx.body.observe()
-        return _fallen(obs) or Outcome(Status.FAILED, "hand empty")
+        return _fallen(obs) or Outcome(Status.FAILED, "release failed")
     return Outcome(Status.OK, f"released {before}", {"released": before})
 
 
