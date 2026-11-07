@@ -25,6 +25,8 @@ LEROBOT_FEATURES: dict[str, dict[str, Any]] = {
     "frame_index": {"dtype": "int64", "shape": [1], "names": None},
     "episode_index": {"dtype": "int64", "shape": [1], "names": None},
     "index": {"dtype": "int64", "shape": [1], "names": None},
+    # One string per frame, like the other scalars here are one number per frame.
+    "task": {"dtype": "string", "shape": [1], "names": None},
     "next.done": {"dtype": "bool", "shape": [1], "names": None},
     "next.success": {"dtype": "bool", "shape": [1], "names": None},
 }
