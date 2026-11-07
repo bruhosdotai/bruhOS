@@ -53,6 +53,12 @@ def parse_plan(raw: Any) -> list[SkillCall]:
         raw = json.loads(text)
     guard_no_joint_actions(raw)
     items = raw.get("plan") if isinstance(raw, dict) else raw
+    if (isinstance(items, dict) and isinstance(items.get("skill"), str)) or isinstance(items, str):
+        # One call in the plan slot instead of a list of calls — a call object
+        # ({"skill": "wave", "args": {}}) or a shorthand string ("wave()").
+        # Treat it as a one-call plan rather than rejecting a valid skill.
+        # Distinct from a bare top-level call object, which open PR #112 covers.
+        items = [items]
     if not isinstance(items, list):
         raise ValueError(f"plan must be a list, got {type(items).__name__}")
     pos = positional_args()
