@@ -12,7 +12,8 @@ from typing import Any
 from bruhos.body.base import Body
 from bruhos.brain.base import IntegrationError, Planner
 from bruhos.schemas import Episode, Observation, Outcome, SkillCall, Status, Step
-from bruhos.skills import CATALOG, SkillContext, SkillError, catalog_hash, run_skill, validate
+from bruhos.skills import SkillContext, SkillError, catalog_hash, run_skill, validate
+from bruhos.skills.registry import catalog
 from bruhos.trace.hashing import seal
 from bruhos.trace.sinks import SinkDispatcher
 
@@ -71,8 +72,8 @@ class Runtime:
 
     def _plan(self, ep: Episode, obs: Observation, history: list[dict[str, Any]] | None) -> list[SkillCall] | None:
         try:
-            raw = (self.brain.replan(ep.instruction, obs, CATALOG, history) if history
-                   else self.brain.plan(ep.instruction, obs, CATALOG))
+            raw = (self.brain.replan(ep.instruction, obs, catalog(), history) if history
+                   else self.brain.plan(ep.instruction, obs, catalog()))
             plan = [validate(c) for c in raw]
         except (SkillError, IntegrationError, ValueError) as e:
             self._record(ep, "rejected", SkillCall("plan", {"error": type(e).__name__}),
