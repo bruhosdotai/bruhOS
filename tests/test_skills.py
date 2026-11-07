@@ -25,6 +25,18 @@ def test_bad_args_rejected():
         validate(SkillCall("wave", {"servo_7": 1500}))
 
 
+def test_empty_string_args_rejected():
+    # An empty string can never name a detection, so it must not validate:
+    # detect(target="") silently behaved like detect() (list all objects) and
+    # walk_toward/look_at burned a full scan revolution before failing.
+    for skill in ("detect", "walk_toward", "look_at"):
+        with pytest.raises(SkillError, match="must not be empty"):
+            validate(SkillCall(skill, {"target": ""}))
+    # Valid targets and an omitted optional target still validate.
+    assert validate(SkillCall("walk_toward", {"target": "red_block"})).args["target"] == "red_block"
+    assert validate(SkillCall("detect", {})).args == {}
+
+
 def test_defaults_filled():
     assert validate(SkillCall("kick")).args == {"foot": "right"}
     assert validate(SkillCall("walk_toward", {"target": "box"})).args["stop_distance_m"] == 0.1

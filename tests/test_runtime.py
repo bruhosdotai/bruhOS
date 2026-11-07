@@ -46,6 +46,15 @@ def test_unregistered_skill_from_brain_never_reaches_body():
     assert "wave" not in body.world.events
 
 
+def test_empty_string_target_from_brain_is_rejected_before_any_scan():
+    body = SimBody()
+    ep = Runtime(body, FixedPlanner([SkillCall("detect", {"target": ""})])).run("Find it.")
+    assert not ep.success
+    assert ep.end_reason.startswith("plan rejected")
+    assert ep.steps[0].kind == "rejected"
+    assert body.frame == 1  # only the pre-plan observation; no scan turns ran
+
+
 def test_stop_preempts_running_skill():
     class SlowBody(SimBody):
         def act(self, primitive):
