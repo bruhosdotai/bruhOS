@@ -2,8 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+# Same object words the offline rules planner already folds together.
+# A brain that keeps the user's noun ("green_cube") must still see the sim block.
+_NOUN_ALIASES = {"cube": "block", "brick": "block", "bin": "box", "basket": "box"}
+
+
+def _aliased_target(target: str) -> str | None:
+    parts = re.findall(r"[a-z0-9]+", target.lower())
+    if not parts or not any(part in _NOUN_ALIASES for part in parts):
+        return None
+    return "_".join(_NOUN_ALIASES.get(part, part) for part in parts)
 
 
 @dataclass
@@ -50,6 +62,9 @@ class Observation:
 
     def find(self, target: str) -> Detection | None:
         hits = [d for d in self.objects if d.matches(target)]
+        aliased = _aliased_target(target)
+        if not hits and aliased is not None:
+            hits = [d for d in self.objects if d.matches(aliased)]
         if not hits:
             return None
         return min(hits, key=lambda d: (d.distance_m if d.distance_m is not None else 1e9, abs(d.bearing_deg)))
