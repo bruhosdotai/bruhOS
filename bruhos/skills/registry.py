@@ -88,6 +88,8 @@ def validate(call: SkillCall) -> SkillCall:
             v = a.type(v)
         except (TypeError, ValueError, OverflowError) as e:
             raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}") from e
+        if a.type is str and v == "":
+            raise SkillError(f"{call.skill}.{k}: must not be empty")
         if isinstance(v, float) and not math.isfinite(v):
             raise SkillError(f"{call.skill}.{k}: must be a finite number, got {v!r}")
         if a.choices and v not in a.choices:
