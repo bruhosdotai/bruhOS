@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
+from typing import Any
 
 from bruhos.schemas import Observation
 
@@ -19,6 +21,26 @@ PRIMITIVES = (
     "stand_up_front",
     "stand_up_back",
 )
+
+
+def parse_fall_deg(value: Any) -> float:
+    """Validate a configured ``fall_deg``: the tilt that counts as a fall.
+
+    Fall detection compares ``abs(tilt) > fall_deg``, so the threshold must be
+    a finite angle in (0, 180). NaN or inf never fires the comparison and
+    silently disables fall detection (a 70-degree roll reads ``fallen=False``);
+    0 or a negative value fires on any micro-tilt, so an upright robot reads
+    ``fallen=True``. 180 can never fire either, because no tilt exceeds it.
+    """
+    try:
+        deg = float(value) if not isinstance(value, bool) else math.nan
+    except (TypeError, ValueError):
+        deg = math.nan
+    if not (math.isfinite(deg) and 0.0 < deg < 180.0):
+        raise ValueError(
+            f"fall_deg must be a finite angle in (0, 180) degrees, got {value!r}"
+        )
+    return deg
 
 
 class Body(ABC):
