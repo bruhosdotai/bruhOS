@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+from bruhos.body.base import parse_fall_deg
 from bruhos.schemas import Imu
 
 PWR_MGMT_1 = 0x6B
@@ -13,11 +14,11 @@ ACCEL_SCALE = 16384.0          # LSB/g at the default +-2g range
 
 class MPU6050:
     def __init__(self, bus: int = 1, address: int = 0x68, fall_deg: float = 55.0, forward_sign: int = 1):
+        self.fall_deg = parse_fall_deg(fall_deg)
         from smbus2 import SMBus  # optional extra: pip install bruhos[imu]
 
         self.bus = SMBus(bus)
         self.addr = address
-        self.fall_deg = fall_deg
         self.forward_sign = forward_sign      # flip if the board is mounted reversed
         self.bus.write_byte_data(self.addr, PWR_MGMT_1, 0)
 
