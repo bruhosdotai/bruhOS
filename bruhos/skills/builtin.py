@@ -110,6 +110,9 @@ def follow_line(ctx: SkillContext, args: dict) -> Outcome:
     obs = ctx.body.observe()
     if (f := _fallen(obs)):
         return f
+    if args["steps"] < 1:
+        return Outcome(Status.FAILED, f"steps must be at least 1, got {args['steps']}",
+                       {"steps": args["steps"]})
     if not obs.line.visible:
         return Outcome(Status.FAILED, "no line in view")
     done = 0
