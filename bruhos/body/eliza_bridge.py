@@ -127,10 +127,18 @@ class ElizaBridgeBody(Body):
         box: list[dict[str, Any]] = []
         self._pending[rid] = (done, box)
         try:
-            self.ws.send(json.dumps({
-                "type": "command", "request_id": rid, "timestamp": datetime.now(UTC).isoformat(),
-                "command": command, "payload": payload, "preempt": preempt,
-            }))
+            try:
+                self.ws.send(json.dumps({
+                    "type": "command", "request_id": rid, "timestamp": datetime.now(UTC).isoformat(),
+                    "command": command, "payload": payload, "preempt": preempt,
+                }))
+            except Exception as e:
+                # A dropped connection raises the transport's own error
+                # (ConnectionClosed, ConnectionResetError, ...). _send only
+                # promises BridgeError, and act() only catches that: letting
+                # the transport error escape would crash the whole episode
+                # instead of failing the one primitive.
+                raise BridgeError(f"{command}: bridge connection failed: {e}") from e
             if not done.wait(self.timeout) or not box:
                 raise BridgeError(f"{command}: no response from bridge")
             return box[0]
