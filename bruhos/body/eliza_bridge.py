@@ -70,6 +70,14 @@ class ElizaBridgeBody(Body):
             "turn_s": float(walk.get("turn_s", 1.0)),
             "heartbeat_s": float(walk.get("heartbeat_s", 0.25)),
         }
+        # forward_s / turn_s are local durations the bridge never sees, so an
+        # unusable value is not rejected anywhere downstream: with 0, negative
+        # or NaN seconds _walk sends walk start and then stops at once, and
+        # still reports the primitive as done. Fail at load instead.
+        for key in ("forward_s", "turn_s"):
+            dur = self.walk[key]
+            if not (math.isfinite(dur) and dur > 0.0):
+                raise ValueError(f"[walk] {key} must be a finite number of seconds > 0, got {dur}")
         self.actions: dict[str, str | None] = {p: None for p in PRIMITIVES} | cfg.get("actions", {})
         self._halted = threading.Event()
         self._closed = threading.Event()
