@@ -27,6 +27,17 @@ class CameraModel:
     height: int = 480
     hfov_deg: float = 62.0
 
+    def __post_init__(self) -> None:
+        # The pinhole model is only defined for 0 < hfov < 180: at 0 the focal
+        # length divides by zero, at 180 it collapses to ~0 (a centred object
+        # reads as 90 degrees off), and a negative angle mirrors every bearing.
+        # Fail at construction, like parse_turn_step does for turn_step_deg,
+        # instead of crashing or steering wrong mid-observation.
+        hfov = float(self.hfov_deg) if not isinstance(self.hfov_deg, bool) else math.nan
+        if not (math.isfinite(hfov) and 0.0 < hfov < 180.0):
+            raise ValueError(f"hfov_deg must be a finite angle in (0, 180) degrees, got {self.hfov_deg!r}")
+        self.hfov_deg = hfov
+
     @property
     def focal_px(self) -> float:
         return (self.width / 2) / math.tan(math.radians(self.hfov_deg / 2))
