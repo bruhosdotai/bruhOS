@@ -3,8 +3,30 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from bruhos.schemas import Observation
+
+
+def parse_forward_sign(value: Any) -> int:
+    """Return the IMU mount-direction flip: 1 (normal) or -1 (board reversed).
+
+    Anything else silently breaks fall detection: 0 zeroes the pitch, so a
+    robot lying face-down reads ``fallen=False``; any other magnitude
+    rescales the pitch, so a small tilt reads as a fall (or vice versa).
+    Reject it at load, before the bus opens or the bridge connects.
+    """
+    if isinstance(value, bool):
+        raise ValueError(f"forward_sign must be 1 or -1, got {value!r}")
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"forward_sign must be 1 or -1, got {value!r}") from None
+    if v == 1.0:
+        return 1
+    if v == -1.0:
+        return -1
+    raise ValueError(f"forward_sign must be 1 or -1, got {value!r}")
 
 PRIMITIVES = (
     "stand",
