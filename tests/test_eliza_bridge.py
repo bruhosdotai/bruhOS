@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 import time
 
@@ -142,4 +143,36 @@ def test_runtime_runs_on_bridge(bridge):
     ep = Runtime(body, make_planner("rules")).run("Wave hello.")
     assert ep.success
     assert ("action.play", {"name": "wave"}) in bridge.commands
+    body.close()
+
+
+def test_bridge_never_dials_through_an_ambient_proxy(bridge, monkeypatch):
+    """``connect()`` must be told explicitly not to use a proxy.
+
+    ``websockets.sync.client.connect`` defaults to ``proxy=True``, which resolves a proxy from
+    ``urllib.request.getproxies()`` — the environment *and*, on macOS, the system configuration —
+    so a ``ws://127.0.0.1`` bridge, the very case ``require_secure`` exists to allow, is dialed
+    through whatever intermediary the host happens to run: an unreachable proxy fails the
+    connection, and a SOCKS proxy raises "connecting through a SOCKS proxy requires python-socks"
+    unless that optional package is installed. bruhOS declares ``dependencies = []``.
+    """
+    import websockets.sync.client as ws_client
+
+    seen: dict = {}
+    real_connect = ws_client.connect
+
+    def recording(uri, **kwargs):
+        seen.update(kwargs)
+        return real_connect(uri, **kwargs)
+
+    monkeypatch.setattr(ws_client, "connect", recording)
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    closed_port = probe.getsockname()[1]
+    probe.close()
+    monkeypatch.setenv("WS_PROXY", f"http://127.0.0.1:{closed_port}")
+
+    body = _body(bridge)
+    assert seen.get("proxy", True) is None, f"connect() did not opt out of the proxy: {seen}"
+    assert body.act("forward")
     body.close()
