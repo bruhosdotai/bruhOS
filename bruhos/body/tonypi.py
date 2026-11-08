@@ -91,7 +91,14 @@ class TonyPiBody(Body):
             try:
                 self.agc.runActionGroup(group, **kw)
             except TypeError:
-                self.agc.runActionGroup(group)
+                try:
+                    self.agc.runActionGroup(group)
+                except Exception:
+                    return False
+            except Exception:
+                # A dropped servo bus must fail this primitive, not kill the episode:
+                # Body.act promises False when the body could not run it.
+                return False
         if primitive == "grab":
             self.holding = "object"
         elif primitive == "release":
