@@ -3,7 +3,7 @@ import time
 
 from bruhos.brain.adapters.rules import RulesPlanner
 from bruhos.brain.base import Planner
-from bruhos.runtime import Runtime
+from bruhos.runtime import Runtime, RuntimeConfig
 from bruhos.schemas import SkillCall
 from bruhos.sim.kinematic import SimBody, World
 from bruhos.trace import Sink, SinkDispatcher
@@ -36,6 +36,37 @@ def test_fall_mid_skill_recovers_and_resumes():
     resumed = ep.steps[kinds.index("recovery") + 1]
     assert resumed.call == ep.steps[kinds.index("recovery") - 1].call
     assert ep.success and "in_box:red_block" in body.world.events
+
+
+def test_recovery_budget_is_per_fall_not_per_episode():
+    # Four separate falls, each fixed by one stand_up. The old per-episode budget
+    # of 3 ended the walk on the fourth fall although every recovery had worked.
+    body = SimBody(falls_at={2, 4, 6, 8})
+    ep = Runtime(body, RulesPlanner()).run("Walk to the box.")
+    assert ep.success, ep.end_reason
+    assert ep.falls == 4 and ep.recoveries == 4
+
+
+def test_failing_stand_up_still_exhausts_the_budget_for_that_fall():
+    class StuckBody(SimBody):
+        def _stand_up(self, front):
+            return False                        # the robot never gets up
+
+    body = StuckBody(falls_at={2})
+    ep = Runtime(body, RulesPlanner(), config=RuntimeConfig(max_recoveries=3)).run("Walk to the box.")
+    assert not ep.success
+    assert ep.end_reason == "fallen, recovery budget exhausted"
+    assert ep.falls == 1 and ep.recoveries == 3
+    assert [s.kind for s in ep.steps].count("recovery") == 3
+
+
+def test_fall_budget_ends_an_episode_that_keeps_falling():
+    body = SimBody(falls_at=set(range(1, 40)))   # falls on every step it takes
+    ep = Runtime(body, RulesPlanner(), config=RuntimeConfig(max_falls=2)).run("Walk to the box.")
+    assert not ep.success
+    assert ep.end_reason == "fell 3 times, fall budget exhausted"
+    assert ep.falls == 3 and ep.recoveries == 3
+    assert not body.observe().imu.fallen       # left standing, not lying down
 
 
 def test_unregistered_skill_from_brain_never_reaches_body():
