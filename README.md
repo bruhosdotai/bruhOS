@@ -124,9 +124,12 @@ Sim baseline for the `rules` brain (kinematic sim, not hardware):
 | Setting | Completion | Falls | Recovered |
 | --- | --- | --- | --- |
 | no falls | 20 / 20 | 1 (scripted, "Stand up.") | 1 |
-| `--fall-prob 0.05 --seed 1` | 16 / 20 | 28 | 24 |
+| `--fall-prob 0.05 --seed 1` | 18 / 20 | 35 | 35 |
 
-Same prompts with the `lfm3_omni` brain: LFM3-Omni-2B Q4_0 in llama.cpp on a Raspberry Pi 5 (8 GB, CPU
+The recovery budget is per fall (`max_recoveries` stand_up attempts each), with `max_falls` (10) capping
+falls per episode. The two misses drop the block in a fall and then release an empty hand.
+
+Same prompts with the `lfm3_omni` brain (measured with the older per-episode recovery budget): LFM3-Omni-2B Q4_0 in llama.cpp on a Raspberry Pi 5 (8 GB, CPU
 only), 3–12 s per plan depending on its length:
 
 | Setting | Completion | Falls | Recovered |

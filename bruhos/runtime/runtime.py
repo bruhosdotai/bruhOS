@@ -21,7 +21,8 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class RuntimeConfig:
-    max_recoveries: int = 3        # stand_up attempts per episode
+    max_recoveries: int = 3        # consecutive stand_up attempts for one fall
+    max_falls: int = 10            # falls one episode may recover from before it ends
     max_replans: int = 1           # brain re-plans after a failed skill
     max_skill_steps: int = 120     # primitive budget inside one skill
 
@@ -114,6 +115,9 @@ class Runtime:
                 ep.falls += 1
                 if self._recover(ep, after) is None:
                     return
+                if ep.falls > self.cfg.max_falls:   # back on its feet, but stop retrying
+                    ep.end_reason = f"fell {ep.falls} times, fall budget exhausted"
+                    return
                 continue                     # resume the interrupted skill
             if outcome.status is Status.STOPPED:
                 ep.end_reason = "stopped"
@@ -137,10 +141,14 @@ class Runtime:
         ep.end_reason = "completed"
 
     def _recover(self, ep: Episode, obs: Observation) -> Observation | None:
+        # The budget is per fall: a stand_up that worked must not use up the
+        # attempts a later, unrelated fall needs. ep.recoveries stays the total.
+        attempts = 0
         while obs.imu.fallen:
-            if ep.recoveries >= self.cfg.max_recoveries or self._stop.is_set():
+            if attempts >= self.cfg.max_recoveries or self._stop.is_set():
                 ep.end_reason = "fallen, recovery budget exhausted" if not self._stop.is_set() else "stopped"
                 return None
+            attempts += 1
             ep.recoveries += 1
             call = SkillCall("stand_up")
             outcome = run_skill(self.ctx, call)
