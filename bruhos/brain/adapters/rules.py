@@ -27,6 +27,11 @@ def _c(skill: str, **args: Any) -> SkillCall:
     return SkillCall(skill, args)
 
 
+# "move" followed by one of these still means navigation (walk toward the
+# object); a bare "move <object>" is a relocation request instead.
+_MOVE_NAV = re.compile(r"\bmove\s+(to|toward|towards|closer|near|next\s+to)\b")
+
+
 class RulesPlanner(Planner):
     name = "rules"
     version = "rules-0.1"
@@ -66,6 +71,12 @@ class RulesPlanner(Planner):
         if has("pick up", "grab", "take", "get", "hold") and obj:
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
+            if has("move") and not has("walk", "go", "come", "approach") and not _MOVE_NAV.search(s):
+                # "move" with a direct object and no destination is a relocation,
+                # not navigation: walking to the object would certify success for
+                # a block that never moved. Navigation phrasings ("move to",
+                # "move toward(s)", "move closer/near/next to") still walk.
+                return []
             return [_c("walk_toward", target=obj)]
         if has("look", "face", "turn") and obj:
             return [_c("look_at", target=obj)]
