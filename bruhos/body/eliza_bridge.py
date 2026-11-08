@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bruhos._net import require_secure
-from bruhos.body.base import PRIMITIVES, Body
+from bruhos.body.base import PRIMITIVES, Body, parse_forward_sign
 from bruhos.schemas import Detection, Imu, Observation
 
 WALK_PRIMITIVES = ("forward", "turn_left", "turn_right")
@@ -58,7 +58,7 @@ class ElizaBridgeBody(Body):
         self.turn_step_deg = float(body.get("turn_step_deg", 15.0))
         self.timeout = float(body.get("timeout_s", 5.0))
         self.fall_deg = float(body.get("fall_deg", 55.0))
-        self.forward_sign = int(body.get("forward_sign", 1))
+        self.forward_sign = parse_forward_sign(body.get("forward_sign", 1))  # before _connect()
         self.allow_insecure = bool(body.get("allow_insecure", False))
         walk = cfg.get("walk", {})
         self.walk = {
