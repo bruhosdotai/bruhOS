@@ -115,7 +115,10 @@ class SimBody(Body):
                 if w.holding:
                     w.holding.x, w.holding.y = w.x, w.y
                     w.holding = None
-                return True
+                # The fall cut the primitive short: it never moved the robot
+                # or kicked, so report False like any other primitive the body
+                # could not run (cf. the bridge on a deadman cut).
+                return False
         return getattr(self, f"_p_{primitive}")()
 
     def halt(self) -> None:
