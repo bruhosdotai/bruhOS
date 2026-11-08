@@ -63,16 +63,14 @@ class ColorBlobDetector:
                 mask |= cv2.inRange(hsv, np.array(lo), np.array(hi))
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                continue
-            c = max(contours, key=cv2.contourArea)
-            area = cv2.contourArea(c)
-            if area < self.min_area_px:
-                continue
-            x, y, w, h = cv2.boundingRect(c)
-            out.append(Detection(self.label, color, round(self.camera.bearing(x + w / 2), 2),
-                                 self.camera.distance(max(w, h), self.size_m),
-                                 round(min(1.0, area / (w * h)), 3)))
+            for c in sorted(contours, key=cv2.contourArea, reverse=True):
+                area = cv2.contourArea(c)
+                if area < self.min_area_px:
+                    continue
+                x, _y, w, h = cv2.boundingRect(c)
+                out.append(Detection(self.label, color, round(self.camera.bearing(x + w / 2), 2),
+                                     self.camera.distance(max(w, h), self.size_m),
+                                     round(min(1.0, area / (w * h)), 3)))
         return out
 
 
