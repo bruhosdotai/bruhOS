@@ -43,6 +43,18 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            if obj not in (None, "line") and not has(" it ") and obs.holding:
+                # A named object that is not what the hand holds can never be
+                # picked up: the grab fails (sim) or re-grips and the plan
+                # releases the wrong object into the box (hardware bodies
+                # report grab success with a full hand). No plan, as for a
+                # mismatched bare drop. Partial names still match ("red"
+                # matches a held "red_block"), same token rule as there.
+                tokens = {t for t in obj.lower().replace("-", "_").split("_")
+                          if t and t not in {"the", "one"}}
+                have = set(obs.holding.lower().replace("-", "_").split("_"))
+                if tokens and not tokens <= have:
+                    return []
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
                     return [_c("walk_toward", target="box"), _c("release")]
