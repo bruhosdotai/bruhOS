@@ -56,6 +56,9 @@ class RulesPlanner(Planner):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
         if has("follow"):
+            obj = _target(s)
+            if obj and not obj.endswith("line"):
+                return []           # no tracking skill: a named object is not the floor line
             return [_c("follow_line")]
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
