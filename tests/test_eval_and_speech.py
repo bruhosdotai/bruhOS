@@ -33,14 +33,19 @@ def test_english_is_default():
     assert SpeechConfig().language == "en"
 
 
-def test_chinese_asr_default_is_refused():
+def test_supported_languages_normalize():
+    assert SpeechConfig(language="english").language == "en"
+    assert SpeechConfig(language="chinese").language == "zh"
+    assert SpeechConfig(language="malay").language == "ms"
+    assert SpeechConfig(language="thai").language == "th"
+    assert SpeechConfig(language="vietnam").language == "vi"
     with pytest.raises(ValueError):
-        SpeechConfig(language="zh")
+        SpeechConfig(language="fr")
+    assert SpeechConfig(language="fr", allow_non_english=True).language == "fr"
 
 
 @pytest.mark.parametrize("cfg", sorted((ROOT / "configs").glob("*.toml")))
 def test_shipped_configs_are_english(cfg):
     with open(cfg, "rb") as f:
         speech = tomllib.load(f)["speech"]
-    SpeechConfig(**speech)
-    assert speech["language"] == "en"
+    assert SpeechConfig(**speech).language == "en"

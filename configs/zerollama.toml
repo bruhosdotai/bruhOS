@@ -5,7 +5,9 @@
 name = "sim"
 
 [speech]
-language = "en"
+# Spoken language Tony expects. One of: english, chinese, malay, thai, vietnam.
+# The ear sends this on the duplex socket so zerollama hears and answers in it.
+language = "english"
 asr = "openai"
 tts = "openai"
 base_url = "http://127.0.0.1:2083/v1"

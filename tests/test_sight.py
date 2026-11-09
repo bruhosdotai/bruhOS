@@ -195,8 +195,127 @@ def test_duplex_instructions_include_current_sight():
         text = "a person holding a card"
 
     text = DuplexSession(SpeechConfig(chat_model="qwen2.5:14b"), sight=Sight())._instructions()
-    assert "a person holding a card" in text
-    assert "In front of you:" in text
-    assert "cannot walk" in text
+    assert "The camera shows: a person holding a card." in text
+    assert "one or two short sentences of plain English" in text
+    assert "Mention the camera only" in text
     bare = DuplexSession(SpeechConfig(chat_model="qwen2.5:14b"))._instructions()
-    assert "camera" not in bare.lower()
+    assert "The camera shows:" not in bare
+    assert "Mention the camera only" in bare
+
+
+def test_plain_caption_drops_chinese_json_and_ocr_junk():
+    from bruhos.speech.realtime import build_instructions
+
+    chinese = build_instructions("A bill on the table. 股东法治")
+    assert "The camera shows: A bill on the table." in chinese
+    assert "股东" not in chinese
+    junk = build_instructions('{"caption": "openh股东"}')
+    assert "The camera shows:" not in junk
+    ocr = build_instructions("openh42XX##股东")
+    assert "The camera shows:" not in ocr
+    assert "No Chinese" in junk
+
+
+def test_build_instructions_keeps_caption_short():
+    from bruhos.speech.realtime import build_instructions
+
+    long = "First sentence here. Second sentence here. Third should be dropped."
+    text = build_instructions(long, when=0)
+    assert "The camera shows: First sentence here." in text
+    assert "Second sentence here." not in text
+
+
+def test_duplex_pushes_caption_via_session_update(monkeypatch):
+    """Pixels stay on vision. Only the caption crosses, as instructions."""
+    import threading
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        def __init__(self, url, timeout=20.0):
+            self._q = [
+                json.dumps({
+                    "type": "session.created",
+                    "session": {
+                        "audio": {"input": {"format": {"rate": 16000}}},
+                        "asr": "qwen3-asr:latest",
+                    },
+                }),
+                None,
+            ]
+
+        def settimeout(self, _t):
+            return None
+
+        def recv_text(self):
+            if not self._q:
+                raise RuntimeError("closed")
+            item = self._q.pop(0)
+            if item is None:
+                raise RuntimeError("closed")
+            return item
+
+        def send_text(self, raw):
+            sent.append(json.loads(raw))
+
+        def close(self):
+            return None
+
+    class Sight:
+        text = ""
+
+        def __init__(self):
+            self._fn = None
+
+        def subscribe(self, fn):
+            self._fn = fn
+            return lambda: None
+
+        def push(self, caption: str):
+            self.text = caption
+            assert self._fn is not None
+            self._fn(caption)
+
+    class Mic:
+        def __init__(self):
+            self.q = __import__("queue").Queue()
+            self.q.put(b"\x00\x00" * 480)
+
+        def close(self):
+            self.q.put(None)
+
+    class Player:
+        def write(self, data, rate):
+            return None
+
+        def flush(self):
+            return None
+
+    monkeypatch.setattr("bruhos.speech.realtime.WebSocket", FakeWS)
+    sight = Sight()
+    cfg = SpeechConfig(
+        base_url="http://127.0.0.1:2083/v1",
+        chat_model="qwen2.5:14b",
+        realtime="duplex",
+        realtime_turn="server_vad",
+    )
+    stop = threading.Event()
+
+    def _push_then_stop():
+        time.sleep(0.05)
+        sight.push("A man covers his face. He looks slightly down. Extra clutter.")
+        stop.set()
+
+    threading.Thread(target=_push_then_stop, daemon=True).start()
+    DuplexSession(cfg, sight=sight).run(stop, device="plughw:Device,0", player=Player(), mic=Mic(), once=True)
+
+    kinds = [m["type"] for m in sent]
+    assert "conversation.item.create" not in kinds
+    updates = [m for m in sent if m["type"] == "session.update"]
+    assert len(updates) >= 2
+    last = updates[-1]["session"]["instructions"]
+    assert "The camera shows: A man covers his face." in last
+    assert "A man covers his face." in last
+    assert "He looks slightly down." not in last
+    assert "Extra clutter" not in last
+    assert "audio" not in updates[-1]["session"]

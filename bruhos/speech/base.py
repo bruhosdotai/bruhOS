@@ -7,6 +7,38 @@ from dataclasses import dataclass
 
 DEFAULT_LANGUAGE = "en"
 
+# Config names and the codes zerollama already accepts. Tony picks one.
+LANGUAGE_CODES = {
+    "en": "en",
+    "english": "en",
+    "zh": "zh",
+    "chinese": "zh",
+    "ms": "ms",
+    "malay": "ms",
+    "th": "th",
+    "thai": "th",
+    "vi": "vi",
+    "vietnam": "vi",
+    "vietnamese": "vi",
+}
+LANGUAGE_NAMES = {
+    "en": "English",
+    "zh": "Chinese",
+    "ms": "Malay",
+    "th": "Thai",
+    "vi": "Vietnamese",
+}
+
+
+def normalize_language(value: str) -> str | None:
+    """Map a config word to the code sent on the duplex socket. None if unknown."""
+    return LANGUAGE_CODES.get(str(value or "").strip().lower())
+
+
+def language_name(code: str) -> str:
+    """Spoken name for the reply instructions. Unknown codes pass through."""
+    return LANGUAGE_NAMES.get(code, code)
+
 
 @dataclass
 class SpeechConfig:
@@ -33,10 +65,15 @@ class SpeechConfig:
     chat_model: str | None = None       # duplex chat model; ear fills this from [brain]
 
     def __post_init__(self) -> None:
-        if self.language != "en" and not self.allow_non_english:
-            raise ValueError(
-                f"bruhOS is English-first; language={self.language!r} needs allow_non_english=True"
-            )
+        code = normalize_language(self.language)
+        if code is None:
+            if not self.allow_non_english:
+                raise ValueError(
+                    f"language={self.language!r} is not one of "
+                    "english, chinese, malay, thai, vietnam"
+                )
+            return
+        self.language = code
 
 
 class ASR(ABC):

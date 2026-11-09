@@ -30,8 +30,8 @@ fi
 
 echo "[wonderecho-alsa] card=$card id=$(cat /proc/asound/card${card}/id)"
 
-# Speaker: audible but not max (less chance of feedback once capture starts)
-amixer -c "$card" set Speaker 60% unmute >/dev/null || true
+# Speaker at half the old 60% level.
+amixer -c "$card" set Speaker 30% unmute >/dev/null || true
 
 # Critical: zero Mic *playback* (sidetone/monitor). Keep capture for ASR.
 if amixer -c "$card" set Mic playback 0% mute >/dev/null 2>&1; then
