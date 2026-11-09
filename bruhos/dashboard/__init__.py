@@ -62,7 +62,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         # A page on another site can rebind its hostname to 127.0.0.1; only answer to loopback names.
-        if not is_loopback(urlsplit('//' + (self.headers.get('Host') or '')).hostname):
+        # A malformed Host header must be refused with 421 like any other non-loopback host,
+        # not crash the handler: urlsplit rejects unbalanced IPv6 brackets.
+        try:
+            host = urlsplit('//' + (self.headers.get('Host') or '')).hostname
+        except ValueError:
+            host = None
+        if not is_loopback(host):
             self.send_error(421)
             return
         path = urlsplit(self.path).path
