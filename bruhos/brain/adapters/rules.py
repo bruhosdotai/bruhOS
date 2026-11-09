@@ -64,6 +64,11 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if re.search(r"\b(from|out of)\s+(the\s+)?(box|bin|basket)\b", s):
+                # The object is inside a container: no skill can take it out,
+                # and in-box objects never appear in observations, so the fetch
+                # can never succeed. No plan instead of a doomed scan.
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
