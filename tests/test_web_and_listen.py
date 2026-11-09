@@ -315,7 +315,7 @@ def test_head_api(tmp_path):
         with urllib.request.urlopen(req, timeout=10) as r:
             st2 = json.loads(r.read().decode())
         assert st2["current"]["name"] == "C1"
-        assert st2.get("preview") == "/see/live/still.jpg"
+        assert st2.get("preview") in ("/see/live/still.jpg", "/eye/frame.jpg")
         with urllib.request.urlopen(f"http://{host}:{port}{st2['preview']}", timeout=5) as r:
             assert r.headers.get("Content-Type", "").startswith("image/")
             assert len(r.read()) > 50

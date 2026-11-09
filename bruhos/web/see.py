@@ -181,27 +181,12 @@ class SeeHub:
         return job
 
     def preview_still(self, *, settle_s: float = 0.55) -> dict[str, Any]:
-        """Grab one JPEG for the UI after a head move — no retune / VL.
-
-        Writes ``/see/live/still.jpg`` (cache-busted by the client).
-        """
-        cam_cfg = self.cfg.get("camera", {})
-        scan_cfg = self.cfg.get("scan", {})
-        jpeg_q = int(cam_cfg.get("jpeg_quality", scan_cfg.get("jpeg_quality", DEFAULT_JPEG_QUALITY)))
-        live = self.see_root / "live"
-        live.mkdir(parents=True, exist_ok=True)
-        # Short wait: analysis holds the cam only during capture/retune/burst.
-        if not self._cam_lock.acquire(timeout=2.5):
-            raise RuntimeError("camera busy retuning — try again in a second")
-        cap = None
-        try:
-            time.sleep(max(0.0, float(settle_s)))
-            if self._grab is not None:
-                jpeg = self._grab()
-            else:
-                open_fn = self._open_camera or _open_camera
-                cap = open_fn(cam_cfg)
-                jpeg = _grab_jpeg(cap, quality=jpeg_q)
+        """Point at the eye publisher's live frame after a head move."""
+        time.sleep(max(0.0, float(settle_s)))
+        if self._grab is not None:
+            jpeg = self._grab()
+            live = self.see_root / "live"
+            live.mkdir(parents=True, exist_ok=True)
             path = live / "still.jpg"
             path.write_bytes(jpeg)
             return {
@@ -209,13 +194,16 @@ class SeeHub:
                 "bytes": len(jpeg),
                 "settle_s": round(float(settle_s), 3),
             }
-        finally:
-            if cap is not None:
-                try:
-                    cap.release()
-                except Exception:  # noqa: BLE001
-                    pass
-            self._cam_lock.release()
+        from bruhos.eye.state import read_frame_bytes
+
+        jpeg = read_frame_bytes()
+        if not jpeg:
+            raise RuntimeError("eye has no frame yet — is bruhos-eye running?")
+        return {
+            "url": "/eye/frame.jpg",
+            "bytes": len(jpeg),
+            "settle_s": round(float(settle_s), 3),
+        }
 
     def _url(self, job: SeeJob, name: str) -> str:
         return f"/see/{job.id}/{name}"
@@ -243,25 +231,38 @@ class SeeHub:
         brain = job.cfg.get("brain", {})
         jpeg_q = int(cam_cfg.get("jpeg_quality", scan_cfg.get("jpeg_quality", DEFAULT_JPEG_QUALITY)))
         try:
-            # Camera section — release before slow VL so head previews still work.
+            # Camera section — prefer the eye publisher so we never steal /dev/video0.
             with self._cam_lock:
                 # --- capture ---
                 t0 = time.perf_counter()
                 job.set_stage("capture", status="running", progress=10, detail="Opening camera…")
+                from_eye = False
                 if self._grab is not None:
                     grab = self._grab
                 else:
-                    open_fn = self._open_camera or _open_camera
-                    cap = open_fn(cam_cfg)
-                    own_cap = True
-                    grab = lambda: _grab_jpeg(cap, quality=jpeg_q)
-                job.set_stage("capture", progress=40, detail="Grabbing still…")
+                    from bruhos.eye.state import read_frame_bytes
+
+                    eye_jpeg = read_frame_bytes()
+                    if eye_jpeg:
+                        from_eye = True
+                        grab = lambda: eye_jpeg
+                    else:
+                        open_fn = self._open_camera or _open_camera
+                        cap = open_fn(cam_cfg)
+                        own_cap = True
+                        grab = lambda: _grab_jpeg(cap, quality=jpeg_q)
+                job.set_stage(
+                    "capture",
+                    progress=40,
+                    detail="Copying eye frame…" if from_eye else "Grabbing still…",
+                )
                 raw = grab()
                 self._write_jpeg(job, "raw.jpg", raw)
                 self._write_jpeg(job, "best.jpg", raw)
                 job.set_stage(
                     "capture", status="done", progress=100,
-                    detail=f"{len(raw)} bytes", seconds=time.perf_counter() - t0,
+                    detail=f"{len(raw)} bytes" + (" (eye)" if from_eye else ""),
+                    seconds=time.perf_counter() - t0,
                 )
 
                 # --- score ---
@@ -283,8 +284,15 @@ class SeeHub:
 
                 # --- retune ---
                 t0 = time.perf_counter()
-                do_retune = bool(scan_cfg.get("retune", True)) and cap is not None
-                if do_retune:
+                do_retune = bool(scan_cfg.get("retune", True)) and cap is not None and not from_eye
+                if from_eye:
+                    job.set_stage(
+                        "retune", status="skipped", progress=100,
+                        detail="eye holds the camera",
+                        seconds=time.perf_counter() - t0,
+                    )
+                    best = raw
+                elif do_retune:
                     job.set_stage("retune", status="running", progress=5, detail="Guided camera cleanup…")
                     retune_settle = float(scan_cfg.get("retune_settle_ms", DEFAULT_RETUNE_SETTLE_S * 1000)) / 1000.0
                     order, sweeps = sweeps_from_config(cam_cfg)
@@ -322,7 +330,13 @@ class SeeHub:
                 # --- burst ---
                 t0 = time.perf_counter()
                 burst_n = int(scan_cfg.get("burst_frames", 5))
-                if burst_n > 1:
+                if from_eye:
+                    job.set_stage(
+                        "burst", status="skipped", progress=100,
+                        detail="eye holds the camera",
+                        seconds=time.perf_counter() - t0,
+                    )
+                elif burst_n > 1:
                     job.set_stage("burst", status="running", progress=10, detail=f"Burst of {burst_n}…")
                     best, bscore, bmeta = burst_best(grab, n=burst_n, pose="see", pause_s=0.08)
                     self._write_jpeg(job, "best.jpg", best)

@@ -7,6 +7,8 @@
     bruhos listen --config configs/zerollama.toml
     bruhos web --config configs/zerollama.toml   # PTT + Take picture (see pipeline)
     bruhos ear --config configs/zerollama.toml   # WonderEcho wake → listen → reply
+    bruhos joysticks                             # every gamepad, including MAGIC-S
+    bruhos drive --config configs/zerollama.toml # left stick on any pad steps the body
     bruhos scan --config configs/zerollama.toml
     bruhos roam --body sim --steps 30 --seed 0
     bruhos roam --config configs/tonypi.toml --body tonypi --calibrate 5 --out traces/roam.json
@@ -502,6 +504,89 @@ def cmd_web(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_joysticks(a: argparse.Namespace) -> int:
+    from bruhos.input.joysticks import scan_joysticks
+
+    devices = scan_joysticks()
+    print(json.dumps([d.to_dict() for d in devices], indent=2))
+    if not devices:
+        print("[joy] no joysticks", flush=True)
+        return 1
+    return 0
+
+
+def cmd_drive(a: argparse.Namespace) -> int:
+    from bruhos.input.drive import DriveConfig, run_drive
+
+    cfg = _load_config(a.config) if a.config else {}
+    agent = _agent_cfg(cfg) if cfg else None
+    body_name = a.body or (agent.body if agent else "sim")
+    if body_name == "tonypi":
+        if agent is None:
+            raise SystemExit("drive --body tonypi needs --config")
+        body = _body(body_name, _body_cfg_for_agent(cfg, agent), 0.0, 0)
+    else:
+        body = _body(body_name, cfg, 0.0, 0)
+    print(f"[joy] body={body_name}", flush=True)
+    try:
+        run_drive(body, DriveConfig(deadzone=a.deadzone))
+    except KeyboardInterrupt:
+        print("\n[joy] stop", flush=True)
+        return 130
+    finally:
+        body.close()
+    return 0
+
+
+def cmd_talk(a: argparse.Namespace) -> int:
+    """Stream the mic and play server audio until Ctrl-C. No local ASR, chat, or TTS."""
+    import signal
+    import threading
+
+    from bruhos.speech.realtime import DuplexSession
+
+    cfg = _load_config(a.config)
+    sc = _speech_cfg(cfg)
+    if not sc.aplay_device:
+        sc.aplay_device = "plughw:Device,0"
+    if not sc.chat_model:
+        sc.chat_model = (cfg.get("brain") or {}).get("model") or "qwen2.5:14b"
+    device = a.device or (cfg.get("ear") or {}).get("device") or "plughw:Device,0"
+    stop = threading.Event()
+
+    def _stop(signum: int, _frame: object) -> None:
+        print(f"[ear] STOP signal {signum}", flush=True)
+        stop.set()
+
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+    from bruhos.listen.sight import start_caption_reader
+
+    sight = start_caption_reader(cfg)
+    try:
+        DuplexSession(sc, sight=sight).run(stop, device=device)
+    finally:
+        if sight is not None:
+            sight.stop()
+    return 0
+
+
+def cmd_eye(a: argparse.Namespace) -> int:
+    """Hold the USB camera and publish frame.jpg + state.json for other processes."""
+    from bruhos.eye import start_from_config
+
+    cfg = _load_config(a.config)
+    publisher = start_from_config(cfg)
+    if publisher is None:
+        print("[eye] camera disabled or no base_url", flush=True)
+        return 1
+    try:
+        publisher.run_forever()
+    finally:
+        publisher.stop()
+    return 0
+
+
 def cmd_ear(a: argparse.Namespace) -> int:
     from bruhos.agent import make_harness
     from bruhos.listen.conversation import Conversation
@@ -526,6 +611,21 @@ def cmd_ear(a: argparse.Namespace) -> int:
         ear_cfg.seconds = a.seconds
     if a.debug is not None:
         ear_cfg.debug = a.debug
+    if sc.realtime == "duplex" and not sc.chat_model:
+        sc.chat_model = (cfg.get("brain") or {}).get("model")
+    if sc.realtime == "duplex":
+        from bruhos.listen.ear import run_duplex_ear
+
+        from bruhos.listen.sight import start_caption_reader
+
+        print("[ear] duplex live; board stays closed", flush=True)
+        sight = start_caption_reader(cfg)
+        try:
+            run_duplex_ear(sc, ear_cfg, once=a.once, sight=sight)
+        finally:
+            if sight is not None:
+                sight.stop()
+        return 0
     chat = _chat_from_cfg(cfg, sc)
     max_turns = int(cfg.get("web", {}).get("max_turns", 16))
     agent = _agent_cfg(cfg)
@@ -605,6 +705,24 @@ def main(argv: list[str] | None = None) -> int:
     ear.add_argument("--debug", action=argparse.BooleanOptionalAction, default=None,
                      help="verbose ALSA/serial/wav stats (default: [ear].debug)")
     ear.set_defaults(fn=cmd_ear)
+
+    talk = sub.add_parser("talk", help="live duplex: stream mic, play the server's voice")
+    talk.add_argument("--config", required=True, help="e.g. configs/zerollama.toml")
+    talk.add_argument("--device", default=None, help="ALSA capture device")
+    talk.set_defaults(fn=cmd_talk)
+
+    eye = sub.add_parser("eye", help="hold the USB camera; publish frame.jpg + state.json")
+    eye.add_argument("--config", required=True, help="e.g. configs/zerollama.toml")
+    eye.set_defaults(fn=cmd_eye)
+
+    js = sub.add_parser("joysticks", help="list every connected joystick (js0, MAGIC-S, …)")
+    js.set_defaults(fn=cmd_joysticks)
+
+    dr = sub.add_parser("drive", help="step the body from the left stick of any joystick")
+    dr.add_argument("--config", default=None, help="e.g. configs/zerollama.toml")
+    dr.add_argument("--body", default=None, choices=["sim", "tonypi"])
+    dr.add_argument("--deadzone", type=float, default=0.5)
+    dr.set_defaults(fn=cmd_drive)
 
     rm = sub.add_parser("roam", help="bump-and-turn walk; IMU bumps + optional WiFi AP fit")
     rm.add_argument("--config", default=None, help="e.g. configs/tonypi.toml")

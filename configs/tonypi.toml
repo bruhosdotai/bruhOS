@@ -10,6 +10,7 @@ turn_step_deg = 15.0                         # calibrate: measure one turn_*_sma
 [actions]
 stand = "stand"
 forward = "go_forward_one_step"          # one gait cycle; go_forward only plays *_start
+back = "back_one_step"
 turn_left = "turn_left_small_step"
 turn_right = "turn_right_small_step"
 grab = "move_up"                             # arms lift a sponge block (Transport.py)

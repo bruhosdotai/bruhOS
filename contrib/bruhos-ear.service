@@ -1,7 +1,7 @@
 [Unit]
 Description=bruhOS ear (WonderEcho wake → listen → reply)
-After=network-online.target sound.target
-Wants=network-online.target
+After=network-online.target sound.target bruhos-eye.service
+Wants=network-online.target bruhos-eye.service
 
 [Service]
 Type=simple

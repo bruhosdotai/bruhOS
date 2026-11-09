@@ -95,6 +95,41 @@ class OpenAICompatASR(ASR):
         except json.JSONDecodeError:
             return raw.decode("utf-8", errors="replace").strip()
 
+    def translate(self, wav_path: str) -> str:
+        """``POST /v1/audio/translations`` — English text from a speech clip."""
+        data = Path(wav_path).read_bytes()
+        fields = {"model": self.model, "response_format": "json"}
+        raw = self.multipart(
+            f"{self.base_url}/audio/translations",
+            _auth_headers(self.api_key),
+            fields,
+            "file",
+            Path(wav_path).name or "audio.wav",
+            data,
+            "audio/wav",
+            self.timeout,
+        )
+        try:
+            return str(json.loads(raw).get("text", "")).strip()
+        except json.JSONDecodeError:
+            return raw.decode("utf-8", errors="replace").strip()
+
+
+def list_voices(cfg: SpeechConfig, model: str | None = None) -> dict:
+    """``GET /v1/audio/voices``."""
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
+
+    base = (cfg.base_url or "").rstrip("/")
+    url = f"{base}/audio/voices"
+    if model:
+        url = f"{url}?{urlencode({'model': model})}"
+    req = Request(url, headers=_auth_headers(
+        cfg.api_key if cfg.api_key is not None else os.environ.get(cfg.api_key_env, "")
+    ))
+    with urlopen(req, timeout=cfg.timeout) as r:
+        return json.loads(r.read().decode())
+
 
 class OpenAICompatTTS(TTS):
     """Remote text-to-speech via ``/v1/audio/speech``.
@@ -126,6 +161,10 @@ class OpenAICompatTTS(TTS):
             "voice": self.voice,
             "response_format": "wav",
         }
+        if self.cfg.language:
+            payload["lang"] = self.cfg.language
+        if self.cfg.tts_emotion:
+            payload["emotion"] = self.cfg.tts_emotion
         headers = {**_auth_headers(self.api_key), "Content-Type": "application/json"}
         try:
             return self.transport(

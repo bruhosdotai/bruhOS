@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import ssl
+import time
 from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -94,6 +95,38 @@ class BruhOSHandler(BaseHTTPRequestHandler):
                 "eliza_actions": skills_as_eliza_actions(),
             })
             return
+        if path == "/api/eye":
+            from bruhos.eye.state import DEFAULT_DIR, frame_path, read_state
+
+            state = read_state()
+            if state is None:
+                self._json(404, {"error": "eye has no state yet — is bruhos-eye running?"})
+                return
+            payload = state.to_dict()
+            payload["ok"] = True
+            payload["frame"] = "/eye/frame.jpg" if frame_path().is_file() else ""
+            survey_path = DEFAULT_DIR / "survey.json"
+            if survey_path.is_file():
+                try:
+                    payload["survey"] = json.loads(survey_path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    pass
+            self._json(200, payload)
+            return
+        if path == "/eye/frame.jpg":
+            from bruhos.eye.state import frame_path
+
+            self._file(frame_path(), no_store=True)
+            return
+        if path.startswith("/eye/survey/") and path.endswith(".jpg"):
+            from bruhos.eye.state import DEFAULT_DIR
+
+            name = path.rsplit("/", 1)[-1]
+            if ".." in name or not name.endswith(".jpg"):
+                self._json(400, {"error": "bad path"})
+                return
+            self._file(DEFAULT_DIR / "survey" / name, no_store=True)
+            return
         if path == "/api/see" or path == "/api/see/latest":
             hub = getattr(self.server, "see", None)
             if hub is None:
@@ -182,6 +215,11 @@ class BruhOSHandler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "JSON body required"})
                 return
             want_preview = bool(payload.get("preview", True))
+            from_eye = payload.get("source") == "eye"
+            if not from_eye:
+                from bruhos.eye.track import hold_head
+
+                hold_head(5.0)
             # Always move the head first — never block poses on a long VL job.
             try:
                 st = hc.apply(payload)
@@ -191,11 +229,20 @@ class BruhOSHandler(BaseHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 self._json(502, {"error": str(e)})
                 return
-            if want_preview and hub is not None:
+            if want_preview:
                 try:
                     move_ms = int((st.get("move_ms") if st else None) or 500)
                     settle = move_ms / 1000.0 + 0.25
-                    prev = hub.preview_still(settle_s=settle)
+                    if hub is not None:
+                        prev = hub.preview_still(settle_s=settle)
+                    else:
+                        time.sleep(max(0.0, settle))
+                        from bruhos.eye.state import read_frame_bytes
+
+                        jpeg = read_frame_bytes()
+                        if not jpeg:
+                            raise RuntimeError("eye has no frame yet")
+                        prev = {"url": "/eye/frame.jpg", "bytes": len(jpeg)}
                     st["preview"] = prev["url"]
                     st["preview_bytes"] = prev["bytes"]
                 except Exception as e:  # noqa: BLE001

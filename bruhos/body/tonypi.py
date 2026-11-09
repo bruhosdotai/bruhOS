@@ -69,17 +69,19 @@ class TonyPiBody(Body):
         cam = cfg.get("camera", {})
         self.cap = self.detector = self.line = None
         self.remote_detect = None
+        self._cam = None
         if cam.get("enabled", True):
             try:
-                import cv2
-
                 from bruhos.detect import make_hot_loop_detector, make_remote_client
                 from .perception import LineDetector
 
-                self.cap = cv2.VideoCapture(cam.get("device", 0))
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, cam.get("width", 640))
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cam.get("height", 480))
-                # Hot-loop: always local (hsv / onnx). Never zerollama on-device.
+                # Do not keep VideoCapture open. The ear and the web see
+                # pipeline need the same device between skill observations.
+                self._cam = (
+                    int(cam.get("device", 0)),
+                    int(cam.get("width", 640)),
+                    int(cam.get("height", 480)),
+                )
                 self.detector = make_hot_loop_detector(cfg)
                 self.line = LineDetector()
                 try:
@@ -89,6 +91,7 @@ class TonyPiBody(Body):
             except Exception as e:  # noqa: BLE001
                 print(f"[tonypi] camera disabled: {e}", flush=True)
                 self.cap = self.detector = self.line = self.remote_detect = None
+                self._cam = None
 
         if cfg.get("head"):
             try:
@@ -156,11 +159,10 @@ class TonyPiBody(Body):
     def observe(self) -> Observation:
         self.frame += 1
         objects, line = [], LineReading()
-        if self.cap is not None:
-            ok, frame = self.cap.read()
-            if ok:
-                objects = self.detector.detect(frame)
-                line = self.line.read(frame)
+        frame = self._read_frame()
+        if frame is not None and self.detector is not None and self.line is not None:
+            objects = self.detector.detect(frame)
+            line = self.line.read(frame)
         if self.board_imu is not None:
             imu = self.board_imu.read()
         elif self.imu is not None:
@@ -169,6 +171,13 @@ class TonyPiBody(Body):
             imu = Imu()
         return Observation(t=round(time.monotonic(), 3), frame=self.frame, objects=objects,
                            imu=imu, line=line, holding=self.holding)
+
+    def _read_frame(self):
+        if not self._cam:
+            return None
+        from bruhos.eye.reader import decode_frame
+
+        return decode_frame()
 
     def _run_action(self, group: str) -> bool:
         path = self.action_path or "/home/pi/TonyPi/ActionGroups/"

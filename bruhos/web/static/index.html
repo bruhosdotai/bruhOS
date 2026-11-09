@@ -225,6 +225,48 @@
       .then(renderHead)
       .catch(e => { lookMeta.textContent = String(e.message || e); });
 
+    /* ---- Eye live stream (bruhos-eye publishes frame.jpg + state.json) ---- */
+    function renderEye(st) {
+      const img = document.getElementById("shot");
+      const placeholder = document.getElementById("ph");
+      const camMeta = document.getElementById("cam-meta");
+      const chips = document.getElementById("chips");
+      if (st.frame) {
+        const url = st.frame + "?t=" + Date.now();
+        img.onload = () => { img.hidden = false; placeholder.hidden = true; };
+        img.src = url;
+      }
+      const parts = [];
+      if (st.caption) parts.push("<span>" + st.caption.replace(/</g, "&lt;") + "</span>");
+      if (st.focus && st.focus !== "focus ok") {
+        parts.push("<span>focus <b>" + String(st.focus).replace(/</g, "&lt;") + "</b></span>");
+      }
+      if (st.direction && st.direction !== "still") {
+        parts.push("<span>moving <b>" + st.direction + "</b></span>");
+      }
+      if (st.mean != null) parts.push("<span>mean <b>" + Math.round(st.mean) + "</b></span>");
+      if (st.error) parts.push("<span>err <b>" + String(st.error).replace(/</g, "&lt;") + "</b></span>");
+      if (parts.length) camMeta.innerHTML = parts.join("");
+      chips.innerHTML = "";
+      for (const name of (st.objects || [])) {
+        const el = document.createElement("span");
+        el.className = "chip";
+        el.textContent = name;
+        chips.appendChild(el);
+      }
+    }
+
+    async function pollEye() {
+      try {
+        const res = await fetch("/api/eye", { cache: "no-store" });
+        if (res.ok) renderEye(await res.json());
+      } catch (e) {
+        /* eye may be starting */
+      }
+      setTimeout(pollEye, 700);
+    }
+    pollEye();
+
     /* ---- See (camera still + analysis) ---- */
     const snapBtn = document.getElementById("snap");
     const seeStatus = document.getElementById("see-status");

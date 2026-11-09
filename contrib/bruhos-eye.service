@@ -1,0 +1,19 @@
+[Unit]
+Description=bruhOS eye (USB camera → frame.jpg + state.json)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Sites/bruhOS
+Environment=PYTHONPATH=/root/Sites/bruhOS
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -c 'CFG=/root/Sites/bruhOS/configs/zerollama.local.toml; [ -f "$CFG" ] || CFG=/root/Sites/bruhOS/configs/zerollama.toml; exec /root/Sites/bruhOS/.venv/bin/bruhos eye --config "$CFG"'
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bruhos-eye
+
+[Install]
+WantedBy=multi-user.target

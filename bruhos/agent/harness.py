@@ -176,6 +176,7 @@ class NativeHarness(Harness):
             "messages": msgs,
             "temperature": self.temperature,
             "stream": False,
+            "max_tokens": 160,
             "response_format": {"type": "json_object"},
         }
         try:
