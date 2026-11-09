@@ -60,6 +60,12 @@ class RulesPlanner(Planner):
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
+            target = _target(s)
+            if target and obs.holding and obs.holding != "object":
+                held = {t for t in obs.holding.lower().replace("-", "_").split("_") if t}
+                wanted = {t for t in target.lower().split("_") if t}
+                if not wanted <= held:
+                    return []       # refuse to drop an object the robot is not holding
             return [_c("release")]
 
         obj = _target(s)
