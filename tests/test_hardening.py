@@ -108,7 +108,8 @@ def _status(port, host):
     return c.getresponse().status
 
 
-@pytest.mark.parametrize("host", ["evil.example", "evil.example:8765", "127.0.0.1.evil.example", ""])
+@pytest.mark.parametrize("host", ["evil.example", "evil.example:8765", "127.0.0.1.evil.example", "",
+                                 "127.0.0.1]", "[::1"])
 def test_dashboard_refuses_foreign_host_headers(dashboard, host):
     assert _status(dashboard, host) == 421
 
