@@ -186,12 +186,13 @@ class SimBody(Body):
     def _kick(self, foot: str) -> bool:
         w = self.world
         ball = self._reachable(KICK_REACH_M, 30.0, lambda o: o.label == "ball")
+        if not ball:
+            return False
         w.events.append(f"kick:{foot}")
-        if ball:
-            r = math.radians(w.heading_deg)
-            ball.x += math.cos(r)
-            ball.y += math.sin(r)
-            w.events.append(f"kicked:{ball.name}")
+        r = math.radians(w.heading_deg)
+        ball.x += math.cos(r)
+        ball.y += math.sin(r)
+        w.events.append(f"kicked:{ball.name}")
         return True
 
     def _p_kick_left(self) -> bool:
