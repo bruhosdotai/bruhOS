@@ -91,7 +91,9 @@ class ElizaBridgeBody(Body):
         from websockets.sync.client import connect
 
         headers = {"Authorization": f"Bearer {token}"} if token else None
-        self.ws = connect(self.url, additional_headers=headers, open_timeout=self.timeout).__enter__()
+        # connect() defaults to proxy=True, which routes even ws://127.0.0.1 via the host's proxy.
+        self.ws = connect(self.url, additional_headers=headers, open_timeout=self.timeout,
+                          proxy=None).__enter__()
         self._reader = threading.Thread(target=self._read, name="eliza-bridge-reader", daemon=True)
         self._reader.start()
 
