@@ -30,25 +30,43 @@ LEROBOT_FEATURES: dict[str, dict[str, Any]] = {
 }
 
 
+def _num(value: Any, default: float = 0.0) -> float:
+    """A numeric field, or ``default`` when it holds the wrong JSON type.
+
+    Trace files are operator-supplied input: a step field may be a string
+    (or any other type) where a number is expected. Coercing only real
+    numbers keeps a wrong-typed field from crashing the export; bools are
+    not numbers here (``float(True)`` would silently become 1.0).
+    """
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _state(obs: dict[str, Any]) -> list[float]:
-    imu, line = obs.get("imu", {}), obs.get("line", {})
+    obs = _mapping(obs)
+    imu, line = _mapping(obs.get("imu")), _mapping(obs.get("line"))
+    objects = obs.get("objects")
     return [
-        float(imu.get("roll_deg", 0.0)), float(imu.get("pitch_deg", 0.0)), float(bool(imu.get("fallen"))),
-        float(obs.get("holding") is not None), float(len(obs.get("objects", []))),
-        float(bool(line.get("visible"))), float(line.get("offset", 0.0)),
+        _num(imu.get("roll_deg")), _num(imu.get("pitch_deg")), float(bool(imu.get("fallen"))),
+        float(obs.get("holding") is not None), float(len(objects) if isinstance(objects, list) else 0),
+        float(bool(line.get("visible"))), _num(line.get("offset")),
     ]
 
 
 def to_lerobot_frames(ep: Episode, episode_index: int = 0, start_index: int = 0) -> list[dict[str, Any]]:
     steps = [s for s in ep.steps if s.kind in {"skill", "recovery", "stop"}]
-    t0 = steps[0].t if steps else 0.0
+    t0 = _num(steps[0].t) if steps else 0.0
     frames = []
     for i, s in enumerate(steps):
         last = i == len(steps) - 1
+        call, outcome = _mapping(s.call), _mapping(s.outcome)
         frames.append({
             "observation.state": _state(s.obs_before),
-            "action": [float(SKILL_INDEX.get(s.call["skill"], -1)), float(s.outcome["status"] == "ok")],
-            "timestamp": round(s.t - t0, 4),
+            "action": [float(SKILL_INDEX.get(call.get("skill"), -1)), float(outcome.get("status") == "ok")],
+            "timestamp": round(_num(s.t, t0) - t0, 4),
             "frame_index": i,
             "episode_index": episode_index,
             "index": start_index + i,
