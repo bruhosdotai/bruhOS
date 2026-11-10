@@ -45,6 +45,19 @@ class RulesPlanner(Planner):
             obj = _target(s[: into_box.start()])
             if obj in (None, "line") or has(" it "):
                 if obs.holding:
+                    if obj not in (None, "line"):
+                        # "it" refers to the object named earlier in the
+                        # sentence ("pick up the red block and put it in the
+                        # box"), not to whatever the hand happens to hold:
+                        # releasing a different held object would deliver the
+                        # wrong object and certify success. Partial names
+                        # still match ("red" matches a held "red_block"),
+                        # same token rule as the named put-in-box guard.
+                        tokens = {t for t in obj.lower().replace("-", "_").split("_")
+                                  if t and t not in {"the", "one"}}
+                        have = set(obs.holding.lower().replace("-", "_").split("_"))
+                        if tokens and not tokens <= have:
+                            return []
                     return [_c("walk_toward", target="box"), _c("release")]
                 obj = obj if obj not in (None, "line") else "block"
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
