@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
@@ -31,6 +32,10 @@ _LEAK_PREFIX = re.compile(
     r"^\s*(Assistant|User|System|Prosecutor|Judge|Defendant|Narrator|Game Master)\s*:\s*",
     re.I,
 )
+# TinyLlama copies a leaked ASR tag into the first word of the reply
+# (``languaage:``). Drop that label. A sentence that merely mentions language
+# has no colon and stays.
+_LANG_ECHO = re.compile(r"^\s*langua+ge\s*:\s*", re.I)
 _EMOJI = re.compile(
     "["
     "\U0001F300-\U0001FAFF"
@@ -43,7 +48,7 @@ _EMOJI = re.compile(
 
 def clean_reply(text: str) -> str:
     """Strip leaked role labels / emoji that break TTS and confuse roles."""
-    t = text.replace("\r\n", "\n").strip()
+    t = _LANG_ECHO.sub("", text.replace("\r\n", "\n")).strip()
     # drop repeated "Assistant:" style lines; keep content after the label
     lines = []
     for line in t.split("\n"):
@@ -55,6 +60,23 @@ def clean_reply(text: str) -> str:
     t = re.sub(r"[ \t]{2,}", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip(" \n-")
+
+
+@dataclass
+class GenRate:
+    """Generation speed from a chat completion's ``timings`` object."""
+
+    tokens: int
+    per_sec: float
+
+
+def gen_rate_from(data: dict[str, Any]) -> GenRate | None:
+    timings = data.get("timings") or {}
+    n = timings.get("predicted_n")
+    rate = timings.get("predicted_per_second")
+    if not isinstance(n, (int, float)) or not isinstance(rate, (int, float)) or n <= 0:
+        return None
+    return GenRate(int(n), float(rate))
 
 
 def http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> bytes:
@@ -84,6 +106,7 @@ class ChatReply:
         self.system = system
         self.transport = transport or http_post
         self.temperature = temperature
+        self.last_gen: GenRate | None = None
 
     def reply(self, user_text: str, history: list[dict[str, str]] | None = None) -> str:
         msgs: list[dict[str, Any]] = [{"role": "system", "content": self.system}]
@@ -106,6 +129,7 @@ class ChatReply:
             self.timeout,
         )
         data = json.loads(raw)
+        self.last_gen = gen_rate_from(data)
         content = data["choices"][0]["message"]["content"]
         if isinstance(content, list):
             content = "".join(

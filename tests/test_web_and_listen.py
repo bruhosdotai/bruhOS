@@ -37,6 +37,7 @@ def test_clean_reply_strips_leaks():
     out = clean_reply(raw)
     assert "Assistant:" not in out and "🐾" not in out
     assert "Order in the court" in out
+    assert clean_reply("languaage: Who is on the 10-dollar bill?") == "Who is on the 10-dollar bill?"
 
 
 def test_chat_reply_request_shape():

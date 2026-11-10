@@ -591,8 +591,12 @@ def cmd_ear(a: argparse.Namespace) -> int:
     from bruhos.agent import make_harness
     from bruhos.listen.conversation import Conversation
     from bruhos.listen.ear import EarConfig, run_ear
+    from bruhos.listen.stack import apply_ear_stack, resolve_ear_stack
 
     cfg = _load_config(a.config)
+    stack = resolve_ear_stack(cfg, a.stack)
+    cfg = apply_ear_stack(cfg, stack)
+    print(f"[ear] stack={stack}", flush=True)
     sc = _speech_cfg(cfg)
     # Ear wants local speaker; keep http write if configured as both/http
     if sc.playback == "http":
@@ -698,6 +702,8 @@ def main(argv: list[str] | None = None) -> int:
 
     ear = sub.add_parser("ear", help="WonderEcho wake → record → STT → chat → TTS")
     ear.add_argument("--config", required=True, help="e.g. configs/zerollama.toml")
+    ear.add_argument("--stack", choices=["local", "remote"], default=None,
+                     help="local (default) = llama-server + Piper on this Pi; remote = zerollama URLs in --config, the faster reply path")
     ear.add_argument("--port", default=None, help="serial port (default [ear].port /dev/ttyUSB0)")
     ear.add_argument("--device", default=None, help="ALSA capture device")
     ear.add_argument("--seconds", type=float, default=None, help="record length after wake")

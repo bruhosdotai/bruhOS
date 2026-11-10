@@ -86,7 +86,9 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | IPFS sink (Kubo HTTP API) | Implemented, not covered by tests |
 | Chain sink | Builds the anchor payload; transaction submit is pluggable, enabled in v0.3 |
 | LeRobot export | Field names / shapes aligned; writing a `LeRobotDataset` is v0.2 |
-| TonyPi body (Hiwonder action groups, OpenCV color blobs, MPU-6050) | Implemented, **not yet validated on a robot** — action-group names must be checked against your image |
+| TonyPi body (Hiwonder action groups, OpenCV color blobs, board IMU) | Action files and the expansion-board IMU are real on this image. The harness ear can dispatch a skill; the servo port is still shared, so a gait can die mid-step |
+| Ear, local stack (llama-server + Piper) | Default. Hears with Qwen3-ASR, answers with TinyLlama, speaks with Piper. `remote` is the zerollama upgrade for a faster reply |
+| Limb torque (`scripts/limbs.py`) | Manual. Unload or load each hand, arm, and leg. Not a skill. See [docs/body.md](docs/body.md) |
 | Isaac Lab twin / Cosmos augmentation | Scene spec only (`bruhos/sim/tabletop_task.toml`); v0.2 |
 
 ## Quick start
@@ -176,8 +178,44 @@ bruhos run "Wave hello." --body tonypi --config configs/tonypi.toml
 
 Before the first run, open `configs/tonypi.toml` (or `tonypi_pro.toml`) and check every name under
 `[actions]` against the `ActionGroups/` directory on your robot, plus `sdk_path` for the Hiwonder
-SDK. Unmapped primitives (e.g. `grab` on a TonyPi without hands) make the skill return `failed`
+SDK. Unmapped primitives (e.g. `grab` on a TonyPi without a gripper) make the skill return `failed`
 instead of guessing.
+
+The body joints can drop torque without a new pose. Why that is separate from `bruhos run`: TonyPi
+already owns the controller port, and unloading a leg folds the robot, so it is a script you run
+on purpose.
+
+```bash
+scripts/limbs.py off left-arm
+scripts/limbs.py off right-arm
+scripts/limbs.py off left-leg
+scripts/limbs.py off right-leg
+```
+
+The head stays on. It is a PWM pair and has no unload. Map, why, and what was learned:
+[docs/body.md](docs/body.md), [docs/findings-body.md](docs/findings-body.md),
+[docs/roadmap-body.md](docs/roadmap-body.md). History: [CHANGELOG.md](CHANGELOG.md).
+
+## Ear
+
+The ear wakes on WonderEcho, then hears and answers. Python is one extra. The models, Piper, and llama-server are listed with their commands in [docs/ear.md](docs/ear.md). `contrib/check-ear-local.sh` prints whatever is still missing.
+
+```bash
+pip install -e ".[ear]"          # pyserial, for the wake-word port
+contrib/check-ear-local.sh       # files and binaries for stack=local
+```
+
+The default stack is `local`: llama-server on this Pi for hearing (`qwen3-asr`) and the reply (`tinyllama`), and Piper for the voice. Why local is the default: the robot should still answer when no other machine is up.
+
+`remote` keeps the zerollama URLs in the config file. That is the upgrade for a faster reply, because that server already has a larger model loaded and does not swap it out to hear the next sentence.
+
+```bash
+bruhos ear --config configs/zerollama.toml                 # local
+bruhos ear --config configs/zerollama.toml --stack remote  # zerollama
+```
+
+How a turn is routed, why, and what is next: [docs/ear.md](docs/ear.md),
+[docs/findings-ear.md](docs/findings-ear.md), [docs/roadmap-ear.md](docs/roadmap-ear.md).
 
 ## Skills (v0.1)
 
@@ -211,17 +249,23 @@ bruhos/
   brain/adapters/ rules · openai · qwen_vl · groot_s2 (stub) · lerobot_policy
   skills/         whitelist + implementations (written once against body primitives)
   body/           Body interface · TonyPi · perception (OpenCV) · MPU-6050
-  speech/         English-first ASR / TTS
+  speech/         English-first ASR / TTS · Piper
+  listen/         ear · local or remote stack
   trace/          hashing · writer · sinks (local | ipfs | chain) · LeRobot frames
   sim/            kinematic tabletop · Isaac Lab scene spec
   schemas/        obs · skill · trace
   eval/           20 English prompts + runner
 configs/          tonypi · tonypi_pro
-docs/             design doc
+scripts/limbs.py  unload or load one limb, no new pose
+docs/             design · body · ear · findings · roadmap
 tests/
 ```
 
 ## Roadmap
+
+Body torque and the controller: [docs/roadmap-body.md](docs/roadmap-body.md).
+
+The ear, why local is the default, and why zerollama is the faster reply: [docs/roadmap-ear.md](docs/roadmap-ear.md).
 
 | Version | Integration | Product |
 | --- | --- | --- |

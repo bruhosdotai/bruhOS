@@ -122,6 +122,22 @@ def test_scrape_go_blob_from_yap():
     assert calls[0].args["steps"] == 3
 
 
+def test_scrape_skill_key_objects_from_yap():
+    from bruhos.agent.harness import _calls_from_text
+
+    blob = (
+        "I'm doing well. { \"wave\": {} } I'm waving. "
+        "{ \"go\": { \"direction\": \"forward\", \"steps\": 3 } } I'm walking. "
+        "{ \"detect\": { \"target\": \"high wonder\" } }"
+    )
+    calls = _calls_from_text(blob)
+    assert [(c.skill, c.args) for c in calls] == [
+        ("wave", {}),
+        ("go", {"direction": "forward", "steps": 3}),
+        ("detect", {"target": "high wonder"}),
+    ]
+
+
 def test_native_scrapes_when_json_plan_is_prose():
     body = SimBody(fall_prob=0.0, seed=3)
     hub = SkillHub(body)
@@ -155,3 +171,87 @@ def test_native_scrapes_when_json_plan_is_prose():
     assert turn.acted
     assert turn.results[0].call.skill == "go"
     assert turn.say == "Stepping forward."
+
+
+def _completion(content: str, *, n: int, tps: float) -> bytes:
+    return json.dumps({
+        "choices": [{"message": {"content": content}}],
+        "timings": {"predicted_n": n, "predicted_per_second": tps},
+    }).encode()
+
+
+def test_sampler_refusal_retries_with_a_user_grammar():
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    body = SimBody(fall_prob=0.0, seed=6)
+    hub = SkillHub(body)
+    chat = ChatReply(base_url="http://unused/v1", model="test", transport=lambda *a: b"{}")
+    seen: list[dict] = []
+
+    def transport(url, headers, body_b, timeout):
+        payload = json.loads(body_b)
+        seen.append(payload)
+        if "response_format" in payload:
+            raise HTTPError(
+                url, 400, "bad", hdrs={},
+                fp=BytesIO(b'{"error":{"message":"Failed to initialize samplers"}}'),
+            )
+        return json.dumps({
+            "choices": [{"message": {"content": '{"say":"Andrew Jackson.","plan":[]}'}}],
+        }).encode()
+
+    say, calls, _gen = NativeHarness(hub, chat, transport=transport)._decide_json_plan(
+        "Who is on the twenty-dollar bill?", None
+    )
+    assert say == "Andrew Jackson."
+    assert calls == []
+    assert "response_format" not in seen[1]
+    assert "root ::= object" in seen[1]["grammar"]
+
+
+def test_chat_only_rate_is_the_spoken_completion():
+    body = SimBody(fall_prob=0.0, seed=4)
+    hub = SkillHub(body)
+    chat = ChatReply(base_url="http://unused/v1", model="test", transport=lambda *a: b"{}")
+    n = {"i": 0}
+
+    def transport(url, headers, body_b, timeout):
+        n["i"] += 1
+        if n["i"] == 1:
+            return _completion("not the spoken line", n=20, tps=10.0)
+        return _completion("Alexander Hamilton.", n=130, tps=13.58)
+
+    turn = NativeHarness(hub, chat, transport=transport).turn("Who is on the bill?")
+    assert turn.say == "Alexander Hamilton."
+    assert turn.gen is not None
+    assert turn.gen.tokens == 130
+    assert turn.gen.per_sec == 13.58
+
+
+def test_spoken_outcome_rate_follows_the_sentence():
+    body = SimBody(fall_prob=0.0, seed=5)
+    hub = SkillHub(body)
+    chat = ChatReply(base_url="http://unused/v1", model="test", transport=lambda *a: b"{}")
+    n = {"i": 0}
+
+    def transport(url, headers, body_b, timeout):
+        n["i"] += 1
+        if n["i"] == 1:
+            return json.dumps({
+                "choices": [{
+                    "message": {
+                        "content": json.dumps({
+                            "say": "",
+                            "plan": [{"skill": "go", "args": {"direction": "forward", "steps": 1}}],
+                        }),
+                    }
+                }],
+                "timings": {"predicted_n": 40, "predicted_per_second": 11.0},
+            }).encode()
+        return _completion("Walking forward.", n=8, tps=14.2)
+
+    turn = NativeHarness(hub, chat, transport=transport).turn("walk")
+    assert turn.say == "Walking forward."
+    assert turn.gen is not None
+    assert (turn.gen.tokens, turn.gen.per_sec) == (8, 14.2)

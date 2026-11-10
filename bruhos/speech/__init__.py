@@ -72,9 +72,12 @@ def make_tts(cfg: SpeechConfig | dict[str, Any] | None = None) -> TTS:
         return OpenAICompatTTS(c)
     if c.tts == "print":
         return PrintTTS()
+    if c.tts == "piper":
+        from .piper import PiperTTS
+        return PiperTTS(c)
     if c.tts == "local":
         return EspeakTTS(c)
-    raise ValueError(f"unknown speech.tts {c.tts!r} (local | openai | print)")
+    raise ValueError(f"unknown speech.tts {c.tts!r} (local | piper | openai | print)")
 
 
 # re-export remote classes lazily-friendly

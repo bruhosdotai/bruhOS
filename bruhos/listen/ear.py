@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from bruhos.listen import audio_debug as adbg
-from bruhos.listen.chat import ChatReply
+from bruhos.listen.chat import ChatReply, GenRate
 from bruhos.listen.conversation import Conversation
 from bruhos.listen.normalize import normalize_file
 from bruhos.listen.wonderecho import WonderEcho
@@ -209,13 +209,16 @@ def _converse(
     acted = False
     try:
         t_turn = time.monotonic()
+        gen = None
         if harness is not None:
             turn = harness.turn(text, history=hist.snapshot())
             reply = turn.say
             acted = bool(getattr(turn, "acted", False))
+            gen = getattr(turn, "gen", None)
         else:
             _phase("LLM_START", f"turns={hist.turns}", t0=t0)
             reply = chat.reply(text, history=hist.snapshot())
+            gen = getattr(chat, "last_gen", None)
             _phase("LLM_DONE", f"{time.monotonic() - t_turn:.2f}s", t0=t0)
         if reply:
             hist.append(text, reply)
@@ -224,6 +227,10 @@ def _converse(
         return False
 
     _phase("REPLY", repr(reply), t0=t0)
+    # Rate of the completion that produced this reply, not Piper and not
+    # the earlier plan request. Wall clock includes a model swap; this does not.
+    if isinstance(gen, GenRate):
+        _phase("GEN", f"{gen.per_sec:.1f} t/s {gen.tokens} tok", t0=t0)
     try:
         if duplex_audio and not acted:
             _phase("TTS_START", f"duplex pcm {duplex_rate}Hz {len(duplex_audio)}B", t0=t0)

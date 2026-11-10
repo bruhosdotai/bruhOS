@@ -1,0 +1,4 @@
+{# One line on purpose. A linebreak outside a tag is text, and it was turning the
+   prompt into <|assistant|> plus two newlines. TinyLlama continues after exactly
+   one newline. The GGUF omits that newline. #}
+{% for message in messages %}{% if message['role'] == 'user' %}{{ '<|user|>\n' + message['content'] + eos_token }}{% elif message['role'] == 'system' %}{{ '<|system|>\n' + message['content'] + eos_token }}{% elif message['role'] == 'assistant' %}{{ '<|assistant|>\n' + message['content'] + eos_token }}{% endif %}{% if loop.last and add_generation_prompt %}{{ '<|assistant|>\n' }}{% endif %}{% endfor %}

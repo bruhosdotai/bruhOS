@@ -40,6 +40,26 @@ def language_name(code: str) -> str:
     return LANGUAGE_NAMES.get(code, code)
 
 
+# Qwen3-ASR is trained to answer ``language English<asr_text>`` and then the words.
+# llama.cpp does not prefill that tag, so it comes back inside the transcript.
+# The official toolkit splits on the tag and keeps the words. ``language None``
+# with nothing after the tag is silence. No tag means the text is already the
+# words, which is what Whisper returns.
+_ASR_TEXT_TAG = "<asr_text>"
+
+
+def clean_transcript(raw: str) -> str:
+    """Return the spoken words from an ASR string."""
+    s = str(raw or "").strip()
+    if _ASR_TEXT_TAG not in s:
+        return s
+    meta, text = s.split(_ASR_TEXT_TAG, 1)
+    text = text.strip()
+    if "language none" in meta.lower() and not text:
+        return ""
+    return text
+
+
 @dataclass
 class SpeechConfig:
     language: str = DEFAULT_LANGUAGE
@@ -48,7 +68,7 @@ class SpeechConfig:
     allow_non_english: bool = False
     # ``local`` = faster-whisper / espeak; ``openai`` = OpenAI-compatible remote API
     asr: str = "local"
-    tts: str = "local"                  # local | openai | print
+    tts: str = "local"                  # local | piper | openai | print
     base_url: str | None = None         # e.g. http://host:2083/v1
     api_key: str | None = None
     api_key_env: str = "OPENAI_API_KEY"

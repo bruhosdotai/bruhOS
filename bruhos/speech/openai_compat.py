@@ -19,7 +19,7 @@ from typing import Callable
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from .base import ASR, SpeechConfig, TTS
+from .base import ASR, SpeechConfig, TTS, clean_transcript
 
 Transport = Callable[[str, dict[str, str], bytes, float], bytes]
 
@@ -90,10 +90,7 @@ class OpenAICompatASR(ASR):
             "audio/wav",
             self.timeout,
         )
-        try:
-            return str(json.loads(raw).get("text", "")).strip()
-        except json.JSONDecodeError:
-            return raw.decode("utf-8", errors="replace").strip()
+        return clean_transcript(self._text(raw))
 
     def translate(self, wav_path: str) -> str:
         """``POST /v1/audio/translations`` — English text from a speech clip."""
@@ -109,6 +106,10 @@ class OpenAICompatASR(ASR):
             "audio/wav",
             self.timeout,
         )
+        return clean_transcript(self._text(raw))
+
+    @staticmethod
+    def _text(raw: bytes) -> str:
         try:
             return str(json.loads(raw).get("text", "")).strip()
         except json.JSONDecodeError:

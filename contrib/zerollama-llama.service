@@ -1,0 +1,17 @@
+[Unit]
+Description=llama.cpp router for the local ear (one model at a time)
+After=network.target
+
+[Service]
+Type=simple
+# models-max 1 is the whole local-turn cost: hearing and the reply cannot
+# both stay loaded. The router id is the folder name under models-dir.
+# models-preset gives tinyllama the newline its GGUF chat template dropped.
+# Why not one --chat-template for the router: that would replace Qwen3-ASR's
+# template too, and the hearing model is ChatML.
+ExecStart=/opt/llama.cpp/src/build/bin/llama-server --host 127.0.0.1 --port 11435 --models-dir /var/lib/bruhos/models --models-preset /root/Sites/bruhOS/contrib/llama-models.ini --models-max 1 -t 4 -c 4096
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -34,7 +34,7 @@ import time
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
-from bruhos.speech.base import SpeechConfig
+from bruhos.speech.base import SpeechConfig, clean_transcript
 from bruhos.speech.ws import WebSocket, WebSocketError
 
 # Asked once after a live socket drops, so the person can repeat the lost sentence.
@@ -757,7 +757,7 @@ class DuplexSession:
                     print(f"[ear] DUPLEX error {text}", flush=True)
                     raise WebSocketError(text)
                 if kind == "conversation.item.input_audio_transcription.completed":
-                    heard = str(event.get("transcript") or "").strip()
+                    heard = clean_transcript(str(event.get("transcript") or ""))
                     asr, asr_backend = _session_asr(event)
                     if _no_words(heard):
                         # No words. Stay on the mic and do not speak a reply.

@@ -34,6 +34,22 @@ def test_remote_asr_multipart_shape(tmp_path):
     assert captured["file_field"] == "file"
 
 
+def test_remote_asr_strips_qwen_wrapper(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF....WAVE")
+
+    def multipart(url, headers, fields, file_field, filename, file_bytes, content_type, timeout):
+        return json.dumps({
+            "text": "language en<asr_text>Who is on the twenty-dollar bill?",
+        }).encode()
+
+    asr = OpenAICompatASR(
+        SpeechConfig(asr="openai", base_url="http://h/v1", asr_model="qwen3-asr", language="en"),
+        multipart=multipart,
+    )
+    assert asr.transcribe(str(wav)) == "Who is on the twenty-dollar bill?"
+
+
 def test_remote_tts_request_and_http_playback(tmp_path):
     out = tmp_path / "audio"
     captured = {}

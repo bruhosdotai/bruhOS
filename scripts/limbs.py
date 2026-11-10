@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """Drop or restore torque on TonyPi limbs without commanding a new pose.
 
-The bus servos hold their last target, and that hold is what heats them.
-``off`` sends Hiwonder's unload (bus subcommand 0x0B) and nothing else, so a
-limb that is already in position just goes limp. ``on`` sends the matching
-load (0x0C). That locks the last commanded target. A limb that sagged while
-off will drive back there. This does not play a stand file.
+Why torque, not a new pulse: an LX-824HV holds its last target with a closed
+position loop, and that hold is what heats the case. The joints were already
+at the pose, so a move command would only clamp harder. ``off`` sends unload
+and no target. ``on`` sends load, which locks that same last target. A limb
+that sagged while unloaded drives back. This does not play a stand file.
 
-The head is PWM servos 1 and 2. Those have no torque command and are left alone.
+Why the head stays on: pitch and yaw are PWM servos. The expansion board
+latches a pulse and has no unload for them.
 
-TonyPi.py already owns /dev/ttyAMA0. This writes the same bytes the SDK's
-``unload_bus_servo`` writes and closes the port. It does not construct a
-second ``Board``.
+Why this opens the serial port itself: TonyPi.py already owns ``/dev/ttyAMA0``.
+Constructing ``Board()`` starts a second reader and can pulse DTR, which
+resets the controller. These frames are the same bytes ``unload_bus_servo``
+writes, and they need no reply.
 
     scripts/limbs.py off left-hand
     scripts/limbs.py off right-hand
     scripts/limbs.py off left-arm
     scripts/limbs.py off right-arm
-    scripts/limbs.py off legs
-    scripts/limbs.py on left-hand
+    scripts/limbs.py off left-leg
+    scripts/limbs.py off right-leg
+    scripts/limbs.py on left-arm
+
+See docs/body.md, docs/findings-body.md, and docs/roadmap-body.md.
 """
 
 from __future__ import annotations
@@ -28,13 +33,21 @@ import sys
 import time
 
 PORT = "/dev/ttyAMA0"
-BAUD = 1_000_000
-BUS_FUNC = 5
-UNLOAD = 0x0B  # Controller.unload_bus_servo → enable_torque(id, 1)
-LOAD = 0x0C    # enable_torque(id, 0); the SDK flag is inverted
+BAUD = 1_000_000  # expansion-board link, not the 115200 servo bus
+BUS_FUNC = 5      # PacketFunction.PACKET_FUNC_BUS_SERVO
+# The SDK names the argument "enable" and then sends 0x0B when it is true.
+# unload_bus_servo passes 1, and that is the phone app's power-down path,
+# so 0x0B is unload. 0x0C is load. On the servo, command 31 with parameter
+# 0 is the same unload, and the servo stores it, which is why a reboot of
+# TonyPi does not by itself turn the motor back on.
+UNLOAD = 0x0B
+LOAD = 0x0C
 
-# Ids from this body's action files. left_hand.d6a moves servo 8 alone and
-# right_hand.d6a moves servo 16 alone. Each arm adds the other two joints.
+# Ids come from diffs of this image's action files, because the SDK never
+# names a joint. left_hand.d6a moves 8 alone and right_hand.d6a moves 16
+# alone, so the hands are separate groups. There is no combined "hands"
+# name. Each arm is those plus the other two joints of that side. Legs are
+# separate for the same reason: unloading either one folds that side.
 GROUPS: dict[str, tuple[int, ...]] = {
     "left-hand": (8,),
     "right-hand": (16,),
@@ -76,7 +89,13 @@ def checksum(data: bytes) -> int:
 
 
 def packet(subcommand: int, servo_id: int) -> bytes:
-    """One bus-servo frame. Layout matches Board.buf_write, not the comment above it."""
+    """One bus-servo frame.
+
+    The comment above ``PacketControllerState`` says length comes before the
+    function byte. ``Board.buf_write`` does the opposite, and the receiver
+    state machine reads function then length. Matching the writer is why
+    the body is ``func, len, subcommand, id``.
+    """
     body = bytes((BUS_FUNC, 2, subcommand, servo_id))
     return bytes((0xAA, 0x55)) + body + bytes((checksum(body),))
 
@@ -99,7 +118,8 @@ def send(payloads: list[bytes], port: str = PORT) -> None:
     ser.baudrate = BAUD
     ser.timeout = 0.05
     ser.write_timeout = 0.5
-    # Match the SDK: do not pulse DTR/RTS, or the controller resets.
+    # Set these before open. The SDK does the same thing because asserting
+    # DTR or RTS resets the controller mid-command.
     ser.rts = False
     ser.dtr = False
     ser.port = port
@@ -111,6 +131,8 @@ def send(payloads: list[bytes], port: str = PORT) -> None:
         for payload in payloads:
             ser.write(payload)
             ser.flush()
+            # The SDK waits 20 ms after every torque write so two short
+            # frames are not fused on the half-duplex servo chain.
             time.sleep(0.02)
     finally:
         ser.close()
@@ -126,8 +148,12 @@ def main(argv: list[str] | None = None) -> int:
 
     servo_ids = ids_for(args.groups)
     sub = UNLOAD if args.action == "off" else LOAD
+    # A leg unload is the same packet as a hand unload. The warning exists
+    # because that leg is what holds the body up, so it folds.
     if args.action == "off" and LEG_IDS.intersection(servo_ids):
         print("legs off: those joints will fold.", file=sys.stderr)
+    # Load does not sample the live angle. The servo still has the old
+    # target, so a limb that moved while limp drives back to it.
     if args.action == "on":
         print("on locks the last commanded pose. A limb that moved while off will drive back there.", file=sys.stderr)
     print(f"{args.action} {' '.join(args.groups)}: servos {', '.join(str(i) for i in servo_ids)}")

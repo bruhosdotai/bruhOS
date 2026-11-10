@@ -10,7 +10,7 @@ from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from bruhos.listen.chat import DEFAULT_SYSTEM, ChatReply, clean_reply  # not via listen.__init__
+from bruhos.listen.chat import DEFAULT_SYSTEM, ChatReply, GenRate, clean_reply, gen_rate_from  # not via listen.__init__
 from bruhos.schemas import SkillCall, parse_call
 from bruhos.skills.dispatch import DispatchResult, SkillHub
 from bruhos.skills.registry import SkillError, positional_args
@@ -34,6 +34,22 @@ SPEAK_SYSTEM = (
     "reply with ONE short spoken sentence (1–2 sentences). No markdown, no JSON, no role labels."
 )
 
+# response_format builds a grammar that starts with the assistant tag and then
+# feeds that tag back into the sampler. TinyLlama's first token is a space glued
+# to "<", so the sampler refuses it. A grammar on the request is not prefilled,
+# so it constrains only the tokens the model still has to write.
+_JSON_OBJECT_GRAMMAR = r"""
+root ::= object
+value ::= object | array | string | number | boolean | null
+object ::= "{" space ( string ":" space value ("," space string ":" space value)* )? space "}"
+array ::= "[" space ( value ("," space value)* )? space "]"
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}))* "\""
+number ::= "-"? ("0" | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+boolean ::= "true" | "false"
+null ::= "null"
+space ::= " "*
+"""
+
 _SKILL_JSON = re.compile(r"\b([a-z_][a-z0-9_]*)\s*(\{[\s\S]*?\})", re.I)
 _SKILL_CALL = re.compile(r"\b([a-z_][a-z0-9_]*)\s*\(([^)]*)\)", re.I)
 
@@ -42,6 +58,7 @@ _SKILL_CALL = re.compile(r"\b([a-z_][a-z0-9_]*)\s*\(([^)]*)\)", re.I)
 class Turn:
     say: str
     results: list[DispatchResult] = field(default_factory=list)
+    gen: GenRate | None = None
 
     @property
     def acted(self) -> bool:
@@ -67,6 +84,19 @@ def http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) ->
     req = Request(url, data=body, headers=headers, method="POST")
     with urlopen(req, timeout=timeout) as r:
         return r.read()
+
+
+def _http_error_body(e: HTTPError) -> str:
+    fp = getattr(e, "fp", None)
+    if fp is None:
+        return ""
+    try:
+        raw = fp.read()
+    except Exception:  # noqa: BLE001
+        return ""
+    if isinstance(raw, str):
+        return raw
+    return (raw or b"").decode("utf-8", errors="replace")
 
 
 def _phase(msg: str) -> None:
@@ -108,6 +138,34 @@ def _calls_from_text(text: str) -> list[SkillCall]:
         if isinstance(args, dict):
             add(SkillCall(name, args))
 
+    # { "wave": {} } and { "go": { "direction": "forward", "steps": 3 } }
+    # The skill name is the object key, so the prefix scan above never sees it.
+    decoder = json.JSONDecoder()
+    cursor = 0
+    while True:
+        start = text.find("{", cursor)
+        if start < 0:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            cursor = start + 1
+            continue
+        cursor = end
+        if not isinstance(obj, dict) or not obj:
+            continue
+        keys = [str(k).lower() for k in obj]
+        if any(k not in known for k in keys):
+            continue
+        for key, raw in zip(keys, obj.values()):
+            if raw is None:
+                args: dict = {}
+            elif isinstance(raw, dict):
+                args = raw
+            else:
+                continue
+            add(SkillCall(key, args))
+
     pos = positional_args()
     for m in _SKILL_CALL.finditer(text):
         name = m.group(1).lower()
@@ -147,18 +205,19 @@ class NativeHarness(Harness):
             h["Authorization"] = f"Bearer {self.api_key}"
         return h
 
-    def _complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _complete(self, payload: dict[str, Any]) -> tuple[dict[str, Any], GenRate | None]:
         raw = self.transport(
             f"{self.base_url}/chat/completions",
             self._headers(),
             json.dumps(payload).encode(),
             self.timeout,
         )
-        return json.loads(raw)["choices"][0]["message"]
+        data = json.loads(raw)
+        return data["choices"][0]["message"], gen_rate_from(data)
 
     def _decide_json_plan(
         self, text: str, history: list[dict[str, str]] | None
-    ) -> tuple[str, list[SkillCall]]:
+    ) -> tuple[str, list[SkillCall], GenRate | None]:
         system = (
             TOOL_SYSTEM
             + "\nReply with JSON only (no other text): "
@@ -180,11 +239,23 @@ class NativeHarness(Harness):
             "response_format": {"type": "json_object"},
         }
         try:
-            msg = self._complete(payload)
+            msg, gen = self._complete(payload)
         except HTTPError as e:
             if e.code in (400, 404, 422) and "response_format" in payload:
+                detail = _http_error_body(e)
                 payload.pop("response_format", None)
-                msg = self._complete(payload)
+                # The tag is already in the prompt. Constraining the new tokens
+                # still gets a JSON plan. A server that rejected the format for
+                # some other reason never sees this grammar.
+                if "sampler" in detail:
+                    payload["grammar"] = _JSON_OBJECT_GRAMMAR
+                    try:
+                        msg, gen = self._complete(payload)
+                    except HTTPError:
+                        payload.pop("grammar", None)
+                        msg, gen = self._complete(payload)
+                else:
+                    msg, gen = self._complete(payload)
             else:
                 raise
         content = msg.get("content") or "{}"
@@ -199,8 +270,8 @@ class NativeHarness(Harness):
         except json.JSONDecodeError:
             scraped = _calls_from_text(text_blob)
             if scraped:
-                return "", scraped
-            return clean_reply(text_blob), []
+                return "", scraped, None
+            return clean_reply(text_blob), [], gen
         say = clean_reply(str(data.get("say") or ""))
         calls: list[SkillCall] = []
         for item in data.get("plan") or []:
@@ -214,18 +285,18 @@ class NativeHarness(Harness):
                     pass
         if not calls:
             calls = _calls_from_text(text_blob)
-        return say, calls
+        return say, calls, gen if say and not calls else None
 
-    def _decide(self, text: str, history: list[dict[str, str]] | None) -> tuple[str, list[SkillCall]]:
+    def _decide(self, text: str, history: list[dict[str, str]] | None) -> tuple[str, list[SkillCall], GenRate | None]:
         # Prefer JSON plan on zerollama/qwen — tools are often ignored and the
         # model dumps "go{...}" into content (which used to become chat-only yap).
-        say, calls = self._decide_json_plan(text, history)
+        say, calls, plan_gen = self._decide_json_plan(text, history)
         if calls:
-            return say, calls
+            return say, calls, None
         scraped = _calls_from_text(say)
         if scraped:
             _phase(f"DECIDE scraped {len(scraped)} call(s) from text")
-            return "", scraped
+            return "", scraped, None
 
         msgs: list[dict[str, Any]] = [{"role": "system", "content": TOOL_SYSTEM}]
         if history:
@@ -241,11 +312,11 @@ class NativeHarness(Harness):
             "tool_choice": "auto",
         }
         try:
-            msg = self._complete(payload)
+            msg, tool_gen = self._complete(payload)
         except HTTPError as e:
             if e.code not in (400, 404, 422):
                 raise
-            return say, []
+            return say, [], plan_gen if say else None
 
         content = msg.get("content") or ""
         if isinstance(content, list):
@@ -265,9 +336,11 @@ class NativeHarness(Harness):
         if not calls:
             calls = _calls_from_text(str(content))
             if calls:
-                return "", calls
+                return "", calls, None
         out_say = clean_reply(str(content)) if not calls else say
-        return out_say or say, calls
+        if out_say:
+            return out_say, calls, tool_gen
+        return say, calls, plan_gen if say else None
 
     def _speak_from_outcomes(self, text: str, results: list[DispatchResult]) -> str:
         summary = [
@@ -292,7 +365,7 @@ class NativeHarness(Harness):
             "temperature": 0.3,
             "stream": False,
         }
-        msg = self._complete(payload)
+        msg, gen = self._complete(payload)
         content = msg.get("content") or ""
         if isinstance(content, list):
             content = "".join(
@@ -300,26 +373,29 @@ class NativeHarness(Harness):
             )
         spoken = clean_reply(str(content))
         if spoken:
+            self._reply_gen = gen
             return spoken
+        self._reply_gen = None
         bits = [f"{r.call.skill}: {r.outcome.detail}" for r in results]
         return clean_reply("; ".join(bits) or "Done.")
 
     def turn(self, text: str, history: list[dict[str, str]] | None = None) -> Turn:
         _phase(f"DECIDE {text!r}")
         try:
-            say, calls = self._decide(text, history)
+            say, calls, gen = self._decide(text, history)
         except Exception as e:  # noqa: BLE001
             _phase(f"DECIDE_FAIL {e}")
             try:
-                return Turn(say=self.chat.reply(text, history=history))
+                return Turn(say=self.chat.reply(text, history=history), gen=self.chat.last_gen)
             except Exception as e2:  # noqa: BLE001
                 return Turn(say=f"I could not think: {e2}")
 
         if not calls:
             if not say:
                 say = self.chat.reply(text, history=history)
+                gen = self.chat.last_gen
             _phase("DECIDE chat-only")
-            return Turn(say=say)
+            return Turn(say=say, gen=gen)
 
         results: list[DispatchResult] = []
         for call in calls:
@@ -331,13 +407,15 @@ class NativeHarness(Harness):
                 f"{result.outcome.detail!r}"
             )
 
+        self._reply_gen = None
         try:
             spoken = self._speak_from_outcomes(text, results)
         except Exception as e:  # noqa: BLE001
             _phase(f"SAY_FAIL {e}")
             spoken = "; ".join(r.outcome.detail for r in results) or "Done."
+            self._reply_gen = None
         _phase(f"SAY {spoken!r}")
-        return Turn(say=spoken, results=results)
+        return Turn(say=spoken, results=results, gen=self._reply_gen)
 
 
 class PluginHarness(Harness):

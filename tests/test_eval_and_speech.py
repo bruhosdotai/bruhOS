@@ -33,6 +33,28 @@ def test_english_is_default():
     assert SpeechConfig().language == "en"
 
 
+def test_tinyllama_template_ends_with_the_trained_newline():
+    from pathlib import Path
+
+    text = Path("contrib/templates/tinyllama.jinja").read_text()
+    assert "{{ '<|assistant|>\\n' }}" in text
+    assert "chat-template-file = /root/Sites/bruhOS/contrib/templates/tinyllama.jinja" in Path(
+        "contrib/llama-models.ini"
+    ).read_text()
+
+
+def test_clean_transcript_keeps_words_after_qwen_tag():
+    from bruhos.speech.base import clean_transcript
+
+    assert clean_transcript(
+        "language en<asr_text>Who is on the twenty-dollar bill?"
+    ) == "Who is on the twenty-dollar bill?"
+    assert clean_transcript("language English\n<asr_text>Piper is ready.") == "Piper is ready."
+    assert clean_transcript("language None<asr_text>") == ""
+    assert clean_transcript("language None<asr_text>still said it") == "still said it"
+    assert clean_transcript("Who's on the $20 bill?") == "Who's on the $20 bill?"
+
+
 def test_supported_languages_normalize():
     assert SpeechConfig(language="english").language == "en"
     assert SpeechConfig(language="chinese").language == "zh"

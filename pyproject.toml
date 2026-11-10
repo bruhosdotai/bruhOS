@@ -47,6 +47,8 @@ depth = [
 ]
 imu = ["smbus2>=0.4"]
 speech = ["faster-whisper>=1.0"]
+# WonderEcho serial. Hearing, the reply model, and Piper are not pip packages.
+# The file list and the commands are in docs/ear.md.
 ear = ["pyserial>=3.5"]
 dev = ["pytest>=8"]
 
