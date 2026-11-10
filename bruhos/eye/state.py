@@ -9,6 +9,27 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+def _detections(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        if not label:
+            continue
+        bbox = item.get("bbox")
+        box = [float(x) for x in bbox[:4]] if isinstance(bbox, (list, tuple)) and len(bbox) >= 4 else []
+        out.append({
+            "label": label,
+            "score": float(item.get("score") or item.get("confidence") or 0.0),
+            "bbox": box,
+            "bearing_deg": float(item.get("bearing_deg") or 0.0),
+        })
+    return out
+
+
 def _movers(raw: Any) -> list[dict[str, float]]:
     if not isinstance(raw, list):
         return []
@@ -38,6 +59,7 @@ class EyeState:
     understood_seq: int = 0
     caption: str = ""
     objects: list[str] = field(default_factory=list)
+    detections: list[dict[str, Any]] = field(default_factory=list)
     motion: float = 0.0
     mean: float = 0.0
     direction: str = "still"
@@ -63,6 +85,7 @@ class EyeState:
             understood_seq=int(data.get("understood_seq") or 0),
             caption=str(data.get("caption") or ""),
             objects=[str(x) for x in objs if str(x).strip()],
+            detections=_detections(data.get("detections")),
             motion=float(data.get("motion") or 0.0),
             mean=float(data.get("mean") or 0.0),
             direction=str(data.get("direction") or "still"),

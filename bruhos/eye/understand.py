@@ -20,7 +20,10 @@ Transport = Callable[[str, dict[str, str], bytes, float], bytes]
 EYE_MODEL = "ministral-3:3b"
 EYE_FALLBACK = "lfm3-omni:latest"
 KEEP_ALIVE = "30m"
-SEE_TEXT = "What is in front of the camera? One sentence."
+SEE_TEXT = (
+    'Reply with JSON only: {"caption":"one sentence","objects":["short name"]}. '
+    "Name what is in front of the camera. Ignore wall, floor, ceiling, and the robot."
+)
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
 
 

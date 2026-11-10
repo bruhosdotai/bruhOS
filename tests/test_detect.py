@@ -63,6 +63,21 @@ def test_detect_response_wire_only():
     assert resp.width == 640
 
 
+def test_detect_response_owlv2_pixel_box_without_coordinate_space():
+    resp = DetectResponse.from_dict({
+        "status": "ok",
+        "model": "owlv2",
+        "image": {"width": 320, "height": 240},
+        "detections": [
+            {"label": "orange block", "score": 0.47, "box": [80.0, 49.75, 204.0, 181.0]},
+        ],
+    })
+    assert resp.width == 320 and resp.height == 240
+    assert resp.coordinate_space == "pixel"
+    assert resp.detections[0].normalized is False
+    assert resp.detections[0].confidence == 0.47
+
+
 def test_detect_response_ok_with_boxes():
     resp = DetectResponse.from_dict({
         "model": "detect",

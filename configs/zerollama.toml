@@ -27,6 +27,9 @@ timeout = 120.0
 
 # WonderEcho Pro CI1302: wake word over /dev/ttyUSB0, mic/spk on USB PnP "Device"
 [ear]
+# local (default) hears and answers on this Pi. remote keeps the zerollama
+# URLs below, which is the upgrade when you want a faster reply.
+stack = "local"
 port = "/dev/ttyUSB0"
 device = "plughw:Device,0"
 seconds = 8.0                   # max listen; server VAD ends the turn when you pause
@@ -99,6 +102,10 @@ yaw_sign = -1
 pitch_max_us = 1800
 move_ms = 500                     # PWM trajectory time; scan waits move_ms + settle_ms
 # pitch_min_us omitted → use servo1 from servo_config
+
+# Always-on camera owner. Lights-off stays "too dark to see".
+[eye]
+jpeg_quality = 90
 
 [camera]
 enabled = true

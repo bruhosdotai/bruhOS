@@ -248,7 +248,22 @@
       if (st.error) parts.push("<span>err <b>" + String(st.error).replace(/</g, "&lt;") + "</b></span>");
       if (parts.length) camMeta.innerHTML = parts.join("");
       chips.innerHTML = "";
+      const seen = new Set();
+      for (const det of (st.detections || [])) {
+        const label = det && det.label ? String(det.label) : "";
+        if (!label) continue;
+        seen.add(label.toLowerCase());
+        const el = document.createElement("span");
+        el.className = "chip";
+        const score = Number(det.score);
+        const bearing = Number(det.bearing_deg);
+        el.textContent = label
+          + (Number.isFinite(score) && score > 0 ? " " + score.toFixed(2) : "")
+          + (Number.isFinite(bearing) ? " " + (bearing > 0 ? "+" : "") + Math.round(bearing) + "°" : "");
+        chips.appendChild(el);
+      }
       for (const name of (st.objects || [])) {
+        if (seen.has(String(name).toLowerCase())) continue;
         const el = document.createElement("span");
         el.className = "chip";
         el.textContent = name;

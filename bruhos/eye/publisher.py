@@ -9,9 +9,11 @@ import urllib.error
 from pathlib import Path
 from typing import Any, Callable
 
+from bruhos.body.perception import CameraModel
 from bruhos.eye.flow import motion_flow
 from bruhos.eye.state import (
     DEFAULT_DIR,
+    STALE_CAPTION_S,
     EyeState,
     write_frame,
     write_state,
@@ -28,7 +30,8 @@ def motion_fraction(prev: bytes, curr: bytes, *, jump: int = 24) -> float:
 MOTION_FRACTION = 0.04
 COOLDOWN_S = 15.0
 PUBLISH_HZ = 4.0
-JPEG_QUALITY = 75
+JPEG_QUALITY = 90
+LIFT_EVERY_S = 60.0
 
 
 class EyePublisher:
@@ -51,6 +54,9 @@ class EyePublisher:
         survey: bool = True,
         head_url: str | None = None,
         memory_path: Path | None = None,
+        detect: Any | None = None,
+        camera: CameraModel | None = None,
+        jpeg_quality: int = JPEG_QUALITY,
     ):
         self.base_url = base_url
         self.model = model
@@ -68,15 +74,21 @@ class EyePublisher:
         self.survey = survey
         self.head_url = head_url
         self.memory_path = memory_path
+        self.detect = detect
+        self.camera = camera or CameraModel(width=self.width, height=self.height)
+        self.jpeg_quality = int(jpeg_quality)
         self.state = EyeState(model=model)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._prev = b""
         self._last_sent = 0.0
         self._saw_lit = False
-        self._busy = False
         self._direction = "still"
         self._survey_done = False
+        self._last_lift = 0.0
+        self._state_lock = threading.Lock()
+        self._vision_thread: threading.Thread | None = None
+        self._detect_error = ""
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -90,6 +102,13 @@ class EyePublisher:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=3)
+        self.wait_vision(timeout=1.0)
+
+    def wait_vision(self, timeout: float = 2.0) -> None:
+        """Block until an in-flight caption/detect call finishes."""
+        thread = self._vision_thread
+        if thread is not None:
+            thread.join(timeout=timeout)
 
     def run_forever(self) -> None:
         self.start()
@@ -116,72 +135,167 @@ class EyePublisher:
     def _encode(self, frame) -> tuple[bytes, bytes, float] | None:
         import cv2
 
+        from bruhos.eye.expose import signal_mean
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         small = cv2.resize(gray, (80, 60))
-        mean = float(gray.mean())
-        out = frame
-        h, w = frame.shape[:2]
-        if w > 480:
-            out = cv2.resize(frame, (480, max(1, int(h * 480 / w))))
-        ok, buf = cv2.imencode(".jpg", out, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
+        mean = signal_mean(gray)
+        ok, buf = cv2.imencode(
+            ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality],
+        )
         if not ok:
             return None
         return small.tobytes(), bytes(buf), mean
 
     def _publish_frame(self, jpeg: bytes, mean: float, motion: float, flow: dict[str, Any]) -> None:
         write_frame(jpeg, self.root)
-        self.state.frame_seq += 1
-        self.state.mean = mean
-        self.state.motion = motion
-        self.state.direction = str(flow.get("direction") or "still")
-        self.state.flow_x = float(flow.get("flow_x") or 0.0)
-        self.state.flow_y = float(flow.get("flow_y") or 0.0)
-        self.state.movers = list(flow.get("movers") or [])
-        write_state(self.state, self.root)
-        if self.state.direction != self._direction:
-            self._direction = self.state.direction
-            if self._direction != "still":
-                print(
-                    f"[eye] MOVE {self._direction} dx={self.state.flow_x} dy={self.state.flow_y}",
-                    flush=True,
-                )
+        moved: tuple[str, float, float] | None = None
+        with self._state_lock:
+            self.state.frame_seq += 1
+            self.state.mean = mean
+            self.state.motion = motion
+            self.state.direction = str(flow.get("direction") or "still")
+            self.state.flow_x = float(flow.get("flow_x") or 0.0)
+            self.state.flow_y = float(flow.get("flow_y") or 0.0)
+            self.state.movers = list(flow.get("movers") or [])
+            if self.state.direction != self._direction:
+                self._direction = self.state.direction
+                if self._direction != "still":
+                    moved = (self._direction, self.state.flow_x, self.state.flow_y)
+            write_state(self.state, self.root)
+        if moved is not None:
+            print(f"[eye] MOVE {moved[0]} dx={moved[1]} dy={moved[2]}", flush=True)
 
-    def _set_caption(self, caption: str, objects: list[str], *, error: str = "") -> None:
+    def _set_caption(
+        self,
+        caption: str,
+        objects: list[str],
+        *,
+        error: str = "",
+        detections: list[dict[str, Any]] | None = None,
+    ) -> None:
         caption = " ".join(caption.split())[:240]
-        self.state.caption = caption
-        self.state.objects = list(objects)
-        self.state.understood_seq = self.state.frame_seq
-        self.state.updated = time.time()
-        self.state.error = error
-        self.state.model = self.model
-        write_state(self.state, self.root)
+        with self._state_lock:
+            self.state.caption = caption
+            self.state.objects = list(objects)
+            if detections is not None:
+                self.state.detections = list(detections)
+            elif caption == "too dark to see":
+                self.state.detections = []
+            self.state.understood_seq = self.state.frame_seq
+            self.state.updated = time.time()
+            self.state.error = error
+            self.state.model = self.model
+            write_state(self.state, self.root)
         print(f"[eye] SEE {caption}", flush=True)
 
-    def _maybe_understand(self, jpeg: bytes, mean: float, motion: float, first_lit: bool) -> None:
-        if self._busy:
-            return
-        now = time.monotonic()
-        due = (now - self._last_sent) >= self.cooldown_s
-        changed = motion >= MOTION_FRACTION
-        if not due or not (first_lit or changed):
-            return
-        self._last_sent = now
-        if mean < self.min_mean:
-            self._set_caption("too dark to see", [])
-            return
-        self._busy = True
+    def _caption_stale(self) -> bool:
+        text = " ".join(self.state.caption.split())
+        if not text or text == "too dark to see":
+            return True
+        stamp = float(self.state.updated or 0.0)
+        if stamp <= 0:
+            return True
+        return (time.time() - stamp) >= STALE_CAPTION_S
+
+    def _detect_boxes(self, jpeg: bytes, objects: list[str]) -> list[dict[str, Any]] | None:
+        """GPU boxes for the names we just saw. None keeps the previous list."""
+        if self.detect is None or not objects:
+            return []
+        from bruhos.detect.types import bboxes_to_detections
+
+        try:
+            resp = self.detect.detect_jpeg(
+                jpeg, queries=list(objects[:12]), frame_id="eye",
+            )
+        except (urllib.error.URLError, OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError) as e:
+            msg = str(e)[:200]
+            self._detect_error = msg
+            if "404" in msg:
+                self.detect = None
+                print("[eye] DETECT off — this server has no /v1/detect", flush=True)
+            else:
+                print(f"[eye] DETECT fail {msg}", flush=True)
+            return None
+        if getattr(resp, "wire_only", False):
+            print("[eye] DETECT wire_only", flush=True)
+            return None
+        spatial = bboxes_to_detections(resp.detections, self.camera)
+        by_label = {d.label: d for d in spatial}
+        out: list[dict[str, Any]] = []
+        for box in resp.detections:
+            hit = by_label.get(box.label.casefold().strip())
+            out.append({
+                "label": box.label,
+                "score": float(box.confidence),
+                "bbox": [box.x1, box.y1, box.x2, box.y2],
+                "bearing_deg": float(hit.bearing_deg) if hit is not None else 0.0,
+            })
+        return out
+
+    def _vision_busy(self) -> bool:
+        thread = self._vision_thread
+        return thread is not None and thread.is_alive()
+
+    def _understand_job(self, jpeg: bytes, mean: float) -> None:
+        """Caption + detect. Runs off the camera thread so frame.jpg keeps moving."""
         try:
             caption, objects = self._understand(jpeg)
             if not caption:
                 caption = "too dark to see" if mean < self.min_mean else ""
             if caption:
-                self._set_caption(caption, objects)
-        except (urllib.error.URLError, OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
-            self.state.error = str(e)[:200]
-            write_state(self.state, self.root)
+                self._detect_error = ""
+                found = self._detect_boxes(jpeg, objects) if caption != "too dark to see" else []
+                self._set_caption(caption, objects, detections=found, error=self._detect_error)
+        except (urllib.error.URLError, OSError, RuntimeError, KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
+            with self._state_lock:
+                self.state.error = str(e)[:200]
+                write_state(self.state, self.root)
             print(f"[eye] SEE fail {e}", flush=True)
-        finally:
-            self._busy = False
+
+    def _maybe_understand(self, jpeg: bytes, mean: float, motion: float, first_lit: bool) -> None:
+        if self._vision_busy():
+            return
+        now = time.monotonic()
+        due = (now - self._last_sent) >= self.cooldown_s
+        changed = motion >= MOTION_FRACTION
+        stale = mean >= self.min_mean and self._caption_stale()
+        if not due or not (first_lit or changed or stale):
+            return
+        self._last_sent = now
+        if mean < self.min_mean:
+            self._set_caption("too dark to see", [])
+            return
+        self._vision_thread = threading.Thread(
+            target=self._understand_job,
+            args=(bytes(jpeg), float(mean)),
+            name="bruhos-eye-vision",
+            daemon=True,
+        )
+        self._vision_thread.start()
+
+    def _lift_if_dark(self, cap) -> None:
+        import cv2
+
+        from bruhos.eye.expose import lift_dark
+        from bruhos.scan.camera_tune import _read_prop, _set_prop
+
+        def measure() -> float | None:
+            pair = self._grab_pair(cap)
+            if pair is None:
+                return None
+            return float(pair[1])
+
+        mean, settings = lift_dark(
+            lambda name, value: _set_prop(cap, cv2, name, value),
+            measure,
+            min_mean=self.min_mean,
+            settle_s=0.05,
+            read_prop=lambda name: _read_prop(cap, cv2, name),
+        )
+        self._last_lift = time.monotonic()
+        if settings:
+            print(f"[eye] exposure {settings} mean={mean:.1f}", flush=True)
 
     def _grab_pair(self, cap) -> tuple[bytes, float] | None:
         ok, frame = cap.read()
@@ -200,7 +314,14 @@ class EyePublisher:
         from bruhos.eye.survey import MEMORY_PATH, run_survey
 
         def grab() -> tuple[bytes, float] | None:
-            return self._grab_pair(cap)
+            pair = self._grab_pair(cap)
+            if pair is not None:
+                jpeg, mean = pair
+                self._publish_frame(
+                    jpeg, mean, 0.0,
+                    {"direction": "still", "flow_x": 0.0, "flow_y": 0.0, "movers": []},
+                )
+            return pair
 
         try:
             report = run_survey(
@@ -215,8 +336,9 @@ class EyePublisher:
             print(f"[eye] SURVEY fail {e}", flush=True)
             self._survey_done = True
             return
-        self.state.focus = str(report.get("focus") or "")
-        self.state.survey_changed = list(report.get("changed") or [])
+        with self._state_lock:
+            self.state.focus = str(report.get("focus") or "")
+            self.state.survey_changed = list(report.get("changed") or [])
         center = None
         for stop in report.get("stops") or []:
             if stop.get("pose") == "C1" and stop.get("caption"):
@@ -225,7 +347,8 @@ class EyePublisher:
             self._set_caption(str(center.get("caption") or ""), list(center.get("objects") or []))
         elif report.get("dark"):
             self._set_caption("too dark to see", [])
-        write_state(self.state, self.root)
+        with self._state_lock:
+            write_state(self.state, self.root)
         self._survey_done = True
 
     def _loop(self) -> None:
@@ -248,6 +371,7 @@ class EyePublisher:
                     self._stop.wait(2)
                     continue
                 if not self._survey_done:
+                    self._lift_if_dark(cap)
                     self._run_boot_survey(cap)
             try:
                 ok, frame = cap.read()
@@ -273,6 +397,13 @@ class EyePublisher:
                 self._stop.wait(period)
                 continue
             gray, jpeg, mean = encoded
+            if (
+                mean < self.min_mean
+                and self._survey_done
+                and (time.monotonic() - self._last_lift) >= LIFT_EVERY_S
+            ):
+                self._lift_if_dark(cap)
+                continue
             motion = motion_fraction(self._prev, gray)
             flow = motion_flow(self._prev, gray, width=80, height=60)
             self._prev = gray
@@ -308,21 +439,30 @@ def start_from_config(cfg: dict[str, Any]) -> EyePublisher | None:
     if not base:
         print("[eye] no base_url", flush=True)
         return None
+    from bruhos.detect import make_remote_client
     from bruhos.eye.survey import MEMORY_PATH, head_url_from_config
     from bruhos.eye.track import follow_from_config
 
+    detect = make_remote_client(cfg)
+    if detect is not None:
+        detect.timeout = min(float(detect.timeout), 20.0)
+    width = int(cam.get("width", 640))
+    height = int(cam.get("height", 480))
     publisher = EyePublisher(
         base_url=base,
         model=str(eye.get("model") or scan.get("model") or "ministral-3:3b"),
         device=int(cam.get("device", 0)),
-        width=int(cam.get("width", 640)),
-        height=int(cam.get("height", 480)),
+        width=width,
+        height=height,
         root=eye.get("dir") or DEFAULT_DIR,
         min_mean=float(scan.get("vl_min_mean", 40.0)),
         follow=follow_from_config(cfg),
         survey=eye.get("survey", True) is not False and bool(cfg.get("head")),
         head_url=head_url_from_config(cfg) if cfg.get("head") else None,
         memory_path=Path(eye["memory"]) if eye.get("memory") else MEMORY_PATH,
+        detect=detect,
+        camera=CameraModel(width=width, height=height, hfov_deg=float(cam.get("hfov_deg", 62.0))),
+        jpeg_quality=int(eye.get("jpeg_quality", JPEG_QUALITY)),
     )
     publisher.start()
     return publisher

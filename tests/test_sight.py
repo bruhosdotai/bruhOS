@@ -113,7 +113,8 @@ def test_understand_frame_posts_jpeg_to_chat_completions():
     assert seen["body"]["model"] == "ministral-3:3b"
     assert seen["body"]["keep_alive"] == "30m"
     parts = seen["body"]["messages"][0]["content"]
-    assert parts[0]["text"] == "What is in front of the camera? One sentence."
+    assert "JSON only" in parts[0]["text"]
+    assert "objects" in parts[0]["text"]
     assert parts[1]["type"] == "image_url"
 
 
@@ -145,6 +146,215 @@ def test_parse_understand_accepts_plain_caption():
     caption, objects = parse_understand("Just a desk.")
     assert caption == "Just a desk."
     assert objects == []
+
+
+def test_lift_dark_stops_when_the_frame_is_lit():
+    from bruhos.eye.expose import lift_dark
+
+    state = {"mean": 1.0}
+
+    def measure():
+        return state["mean"]
+
+    def set_prop(name, value):
+        if name == "brightness" and value >= 180:
+            state["mean"] = 55.0
+        return True
+
+    best, settings = lift_dark(set_prop, measure, min_mean=40.0, settle_s=0.0)
+    assert best >= 40.0
+    assert settings.get("brightness") == 180.0
+
+
+def test_lift_dark_restores_controls_when_the_room_stays_black():
+    from bruhos.eye.expose import lift_dark
+
+    props = {"auto_exposure": 3.0, "exposure": -5.0, "brightness": 128.0}
+    applied = []
+
+    def measure():
+        return 0.0
+
+    def set_prop(name, value):
+        props[name] = value
+        applied.append((name, value))
+        return True
+
+    best, settings = lift_dark(
+        set_prop, measure, min_mean=40.0, settle_s=0.0,
+        read_prop=lambda name: props.get(name),
+    )
+    assert best == 0.0
+    assert settings == {}
+    assert props["auto_exposure"] == 3.0
+    assert props["brightness"] == 128.0
+    assert applied[-3:] == [("auto_exposure", 3.0), ("exposure", -5.0), ("brightness", 128.0)]
+
+
+def test_still_lit_scene_refreshes_a_stale_caption(tmp_path):
+    from bruhos.eye.publisher import EyePublisher
+
+    calls = {"n": 0}
+
+    def understand(jpeg):
+        calls["n"] += 1
+        return "a lamp", ["lamp"]
+
+    pub = EyePublisher(
+        base_url="http://unused/v1",
+        root=tmp_path,
+        min_mean=40.0,
+        cooldown_s=0.0,
+        understand=understand,
+    )
+    pub.state.caption = "old lamp"
+    pub.state.updated = time.time() - 30
+    pub._maybe_understand(b"jpeg", mean=80.0, motion=0.0, first_lit=False)
+    pub.wait_vision()
+    assert calls["n"] == 1
+    assert read_state(tmp_path).caption == "a lamp"
+
+
+def test_fresh_still_caption_is_not_repeated(tmp_path):
+    from bruhos.eye.publisher import EyePublisher
+
+    calls = {"n": 0}
+
+    def understand(jpeg):
+        calls["n"] += 1
+        return "a lamp", ["lamp"]
+
+    pub = EyePublisher(
+        base_url="http://unused/v1",
+        root=tmp_path,
+        cooldown_s=0.0,
+        understand=understand,
+    )
+    pub.state.caption = "a lamp"
+    pub.state.updated = time.time()
+    pub._maybe_understand(b"jpeg", mean=80.0, motion=0.0, first_lit=False)
+    assert calls["n"] == 0
+
+
+def test_named_objects_are_sent_to_detect(tmp_path):
+    from bruhos.detect.types import BBox, DetectResponse
+    from bruhos.eye.publisher import EyePublisher
+
+    class Det:
+        def __init__(self):
+            self.queries = None
+
+        def detect_jpeg(self, jpeg, **kw):
+            self.queries = kw.get("queries")
+            return DetectResponse(
+                status="ok",
+                detections=[BBox("lamp", 0.2, 0.2, 0.6, 0.7, 0.8, normalized=True)],
+                coordinate_space="normalized",
+                width=64,
+                height=48,
+            )
+
+    det = Det()
+    pub = EyePublisher(
+        base_url="http://unused/v1",
+        root=tmp_path,
+        cooldown_s=0.0,
+        understand=lambda jpeg: ("a lamp", ["lamp"]),
+        detect=det,
+        camera=__import__("bruhos.body.perception", fromlist=["CameraModel"]).CameraModel(64, 48, 62.0),
+    )
+    pub._maybe_understand(b"jpeg", mean=80.0, motion=1.0, first_lit=True)
+    pub.wait_vision()
+    assert det.queries == ["lamp"]
+    got = read_state(tmp_path)
+    assert got.detections[0]["label"] == "lamp"
+    assert got.detections[0]["bbox"][0] == 0.2
+
+
+def test_detect_404_keeps_the_caption_and_stops_calling(tmp_path):
+    from bruhos.eye.publisher import EyePublisher
+
+    class Det:
+        def __init__(self):
+            self.n = 0
+
+        def detect_jpeg(self, jpeg, **kw):
+            self.n += 1
+            raise RuntimeError("detect HTTP 404: 404 page not found")
+
+    det = Det()
+    pub = EyePublisher(
+        base_url="http://unused/v1",
+        root=tmp_path,
+        cooldown_s=0.0,
+        understand=lambda jpeg: ("a lamp", ["lamp"]),
+        detect=det,
+    )
+    pub._maybe_understand(b"jpeg", mean=80.0, motion=1.0, first_lit=True)
+    pub.wait_vision()
+    got = read_state(tmp_path)
+    assert got.caption == "a lamp"
+    assert "404" in got.error
+    assert pub.detect is None
+    assert det.n == 1
+    pub.state.updated = time.time() - 30
+    pub._maybe_understand(b"jpeg", mean=80.0, motion=1.0, first_lit=False)
+    pub.wait_vision()
+    assert det.n == 1
+
+
+def test_published_jpeg_keeps_the_camera_width():
+    import cv2
+    import numpy as np
+
+    from bruhos.eye.publisher import EyePublisher
+
+    pub = EyePublisher(base_url="http://unused/v1", width=640, height=480)
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    frame[:] = (40, 80, 120)
+    frame[::4, :] = (220, 220, 220)
+    _gray, jpeg, mean = pub._encode(frame)
+    img = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert img.shape[1] == 640
+    assert img.shape[0] == 480
+    assert mean > 40
+    flat = np.full((480, 640, 3), 104, dtype=np.uint8)
+    assert pub._encode(flat)[2] == 0.0
+
+
+def test_caption_call_does_not_block_the_next_frame(tmp_path):
+    import threading
+
+    from bruhos.eye.publisher import EyePublisher
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def understand(jpeg):
+        started.set()
+        assert release.wait(2)
+        return "a cup", ["cup"]
+
+    pub = EyePublisher(
+        base_url="http://unused/v1",
+        root=tmp_path,
+        cooldown_s=0.0,
+        understand=understand,
+    )
+    pub._maybe_understand(b"jpeg-a", mean=80.0, motion=1.0, first_lit=True)
+    assert started.wait(1)
+    pub._publish_frame(
+        b"jpeg-b", 80.0, 0.0,
+        {"direction": "still", "flow_x": 0.0, "flow_y": 0.0, "movers": []},
+    )
+    assert pub.state.frame_seq == 1
+    assert (tmp_path / "frame.jpg").read_bytes() == b"jpeg-b"
+    release.set()
+    pub.wait_vision()
+    got = read_state(tmp_path)
+    assert got is not None
+    assert got.caption == "a cup"
+    assert got.frame_seq == 1
 
 
 def test_dark_frame_skips_http(tmp_path):

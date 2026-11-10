@@ -127,18 +127,24 @@ class DetectResponse:
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> DetectResponse:
-        space = raw.get("coordinate_space") or "normalized"
-        default_norm = str(space).casefold() == "normalized"
         items = raw.get("detections") or raw.get("objects") or []
+        if not isinstance(items, list):
+            items = []
+        size = raw.get("image_size")
+        if not isinstance(size, dict):
+            image = raw.get("image")
+            size = image if isinstance(image, dict) else {}
+        space = raw.get("coordinate_space")
+        if not space:
+            space = "pixel" if _boxes_look_like_pixels(items) else "normalized"
+        default_norm = str(space).casefold() == "normalized"
         dets: list[BBox] = []
-        if isinstance(items, list):
-            for it in items:
-                if isinstance(it, dict):
-                    try:
-                        dets.append(BBox.from_dict(it, default_normalized=default_norm))
-                    except (TypeError, ValueError):
-                        continue
-        size = raw.get("image_size") or {}
+        for it in items:
+            if isinstance(it, dict):
+                try:
+                    dets.append(BBox.from_dict(it, default_normalized=default_norm))
+                except (TypeError, ValueError):
+                    continue
         w = raw.get("width", size.get("width") if isinstance(size, dict) else None)
         h = raw.get("height", size.get("height") if isinstance(size, dict) else None)
         engine = raw.get("engine") if isinstance(raw.get("engine"), dict) else {}
@@ -155,6 +161,22 @@ class DetectResponse:
             engine=dict(engine or {}),
             seconds=float(raw["seconds"]) if raw.get("seconds") is not None else None,
         )
+
+
+def _boxes_look_like_pixels(items: list[Any]) -> bool:
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        bbox = it.get("bbox") or it.get("xyxy") or it.get("box")
+        if not isinstance(bbox, (list, tuple)):
+            continue
+        try:
+            nums = [abs(float(n)) for n in bbox[:4]]
+        except (TypeError, ValueError):
+            continue
+        if any(n > 1.5 for n in nums):
+            return True
+    return False
 
 
 def bboxes_to_detections(
