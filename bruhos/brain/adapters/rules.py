@@ -52,6 +52,15 @@ class RulesPlanner(Planner):
 
         if has("kick"):
             foot = "left" if has("left") else "right"
+            if into_box or re.search(
+                r"\b(towards?|at|onto|on)\s+(the\s+)?(\w+\s+)?(box|bin|basket)\b", s
+            ):
+                # Kicking cannot aim at a destination: the ball goes where the
+                # robot faces, so a named box destination would be silently
+                # dropped while the episode reports success. ``into_box``
+                # covers to/into/in/inside; the other destination
+                # prepositions need their own match.
+                return []
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
