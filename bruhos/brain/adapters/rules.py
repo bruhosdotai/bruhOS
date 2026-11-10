@@ -27,6 +27,30 @@ def _c(skill: str, **args: Any) -> SkillCall:
     return SkillCall(skill, args)
 
 
+# A "to <object>" destination names somewhere the object must end up. The
+# box is the only destination the skill set can place an object at (release
+# into the box is a modeled containment); any other object destination is
+# silently dropped by the branches below, which then certify success for
+# work that never happened. "next to" is a spatial relation, not a
+# destination, so it does not count.
+_TO_OBJECT = re.compile(r"\b(?<!next\s)to\s+(the\s+)?([a-z]+\s+)?(block|ball|line)\b")
+_OBJECT_WORDS = COLORS | set(NOUNS)
+
+
+def _names_object_destination(text: str) -> bool:
+    """True when an object is named before a "to <object>" destination.
+
+    Pure navigation ("Walk to the box.", "Go to the green block.") has no
+    object before the "to", so the "to" phrase is the target itself, not a
+    destination for something else.
+    """
+    m = _TO_OBJECT.search(text)
+    if not m:
+        return False
+    head = text[: m.start()]
+    return bool(set(re.findall(r"[a-z]+", head)) & _OBJECT_WORDS)
+
+
 class RulesPlanner(Planner):
     name = "rules"
     version = "rules-0.1"
@@ -51,6 +75,8 @@ class RulesPlanner(Planner):
                     _c("walk_toward", target="box"), _c("release")]
 
         if has("kick"):
+            if _names_object_destination(s):
+                return []
             foot = "left" if has("left") else "right"
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
@@ -60,12 +86,18 @@ class RulesPlanner(Planner):
         if has("wave", "hello", "hi", "greet", "say hi"):
             return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
+            if _names_object_destination(s):
+                return []
             return [_c("release")]
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if _names_object_destination(s):
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
+            if _names_object_destination(s):
+                return []
             return [_c("walk_toward", target=obj)]
         if has("look", "face", "turn") and obj:
             return [_c("look_at", target=obj)]
