@@ -35,6 +35,19 @@ class RulesPlanner(Planner):
         s = " " + re.sub(r"[^a-z ]+", " ", instruction.lower()) + " "
         has = lambda *ws: any(f" {w} " in s or (" " in w and w in s) for w in ws)
 
+        # A trailing stop clause ("... and stop" / "... then stop") is a
+        # finalizer, not the whole command: do the work first, stop last.
+        # Without this the stop branch below claims the whole instruction
+        # and certifies success while the robot never moves. Only the
+        # conjunction forms are treated as a finalizer, so a negated stop
+        # ("Don't stop.") still reaches the stop branch untouched.
+        m = re.search(r"\b(?:and|then)\s+(stop|halt|freeze)\b\s*$", s)
+        if m:
+            rest = self.plan(s[: m.start()], obs, catalog)
+            if not rest or (len(rest) == 1 and rest[0].skill == "stop"):
+                return [_c("stop")]
+            return [*rest, _c("stop")]
+
         if has("stop", "halt", "freeze"):
             return [_c("stop")]
         if has("stand up", "get up", "get back up"):
