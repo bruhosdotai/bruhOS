@@ -63,10 +63,12 @@ class Outcome:
         if not isinstance(d, dict) or "status" not in d:
             raise ValueError(f"not an outcome dict: {d!r}")
         data = d.get("data")
+        if data is not None and not isinstance(data, dict):
+            raise ValueError(f"data must be an object: {d!r}")
         return cls(
             status=d["status"],
             detail=str(d.get("detail") or ""),
-            data=dict(data) if isinstance(data, dict) else {},
+            data=dict(data) if data is not None else {},
         )
 
 

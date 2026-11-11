@@ -53,7 +53,16 @@ def test_outcome_from_dict_defaults():
     assert o.data == {}
 
 
-@pytest.mark.parametrize("bad_dict", ["not_a_dict", 42, None, [], {}, {"detail": "no status"}])
+@pytest.mark.parametrize("bad_dict", [
+    "not_a_dict",
+    42,
+    None,
+    [],
+    {},
+    {"detail": "no status"},
+    {"status": "ok", "data": "not_a_dict"},
+    {"status": "ok", "data": [1, 2]},
+])
 def test_outcome_from_dict_invalid(bad_dict):
     with pytest.raises(ValueError):
         Outcome.from_dict(bad_dict)
@@ -66,3 +75,38 @@ def test_outcome_roundtrip():
     assert restored.detail == original.detail
     assert restored.data == original.data
     assert restored.ok is True
+
+
+def test_runtime_handles_string_status_and_dict_outcomes_from_skill(monkeypatch):
+    from bruhos.brain.base import Planner
+    from bruhos.runtime import Runtime, RuntimeConfig
+    from bruhos.schemas import SkillCall
+    from bruhos.sim import SimBody
+    from bruhos.skills import registry
+
+    class FixedPlanner(Planner):
+        name = "fixed"
+        version = "0.1"
+
+        def plan(self, instruction, obs, catalog):
+            return [SkillCall("wave")]
+
+        def replan(self, instruction, obs, catalog, history):
+            return [SkillCall("stop")]
+
+    calls = 0
+
+    def custom_wave(ctx, args):
+        nonlocal calls
+        calls += 1
+        return Outcome("failed", "actuator busy")
+
+    monkeypatch.setitem(registry._IMPL, "wave", custom_wave)
+    monkeypatch.setitem(registry._IMPL, "stop", lambda ctx, args: {"status": "stopped", "detail": "halted"})
+
+    rt = Runtime(SimBody(), FixedPlanner(), config=RuntimeConfig(max_replans=1))
+    ep = rt.run("wave")
+    assert calls == 1
+    assert ep.steps[0].outcome["status"] == "failed"
+    assert ep.steps[1].outcome["status"] == "stopped"
+    assert ep.end_reason == "stopped"

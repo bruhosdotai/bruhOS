@@ -100,7 +100,8 @@ def run_skill(ctx: SkillContext, call: SkillCall) -> Outcome:
     call = validate(call)
     if ctx.should_stop() and call.skill != "stop":
         return Outcome(Status.STOPPED, "stop requested")
-    return _IMPL[call.skill](ctx, call.args)
+    res = _IMPL[call.skill](ctx, call.args)
+    return Outcome.from_dict(res) if isinstance(res, dict) else res
 
 
 def catalog() -> list[dict[str, Any]]:
