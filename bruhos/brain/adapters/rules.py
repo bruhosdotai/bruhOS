@@ -69,6 +69,16 @@ class RulesPlanner(Planner):
             return [_c("walk_toward", target=obj)]
         if has("look", "face", "turn") and obj:
             return [_c("look_at", target=obj)]
+        if obj and not re.search(r"\b(in|inside)\s+(the\s+)?(box|bin|basket)\b", s) and (
+                re.search(r"\b(is there|are there)\b", s)
+                or re.search(r"^\s*is\b.*\bhere\b", s)):
+            # An existence question ("Is there a red block?", "Is the red
+            # block here?") is answered by the same scan "Find the red
+            # block." runs: detect reports found / not found. A question
+            # about containment ("... in the box") cannot be answered by
+            # scanning -- objects in the box are hidden from observe() --
+            # so it gets no plan instead of a false "not found".
+            return [_c("detect", target=obj)]
         if has("find", "where", "locate", "search", "detect", "see") and obj:
             return [_c("detect", target=obj)]
         if has("what do you see", "look around", "what s around", "scan"):
