@@ -32,6 +32,15 @@ class BridgeError(RuntimeError):
     pass
 
 
+def _as_float(value: Any, default: float = 0.0) -> float:
+    """Coerce a bridge payload value to a finite float; unusable values read as ``default``."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return v if math.isfinite(v) else default
+
+
 def to_detection(entity: dict[str, Any]) -> Detection:
     """Bridge perception entity (robot frame: +x forward, +y left) -> bruhOS detection."""
     words = str(entity.get("label", "object")).lower().split()
@@ -147,14 +156,21 @@ class ElizaBridgeBody(Body):
 
     def observe(self) -> Observation:
         self.frame += 1
-        tel = self._telemetry
-        roll = math.degrees(float(tel.get("imu_roll", 0.0)))
-        pitch = math.degrees(float(tel.get("imu_pitch", 0.0)))
+        tel = self._telemetry if isinstance(self._telemetry, dict) else {}
+        roll = math.degrees(_as_float(tel.get("imu_roll"), 0.0))
+        pitch = math.degrees(_as_float(tel.get("imu_pitch"), 0.0))
         fallen = abs(roll) > self.fall_deg or abs(pitch) > self.fall_deg
         imu = Imu(roll_deg=round(roll, 1), pitch_deg=round(pitch, 1), fallen=fallen,
                   fell_forward=(pitch * self.forward_sign > 0) if fallen else None)
+        objects = []
+        entities = self._entities if isinstance(self._entities, list) else []
+        for e in entities:
+            try:
+                objects.append(to_detection(e))
+            except (TypeError, ValueError, AttributeError):
+                continue            # one malformed entity must not drop the whole observation
         return Observation(t=round(time.monotonic(), 3), frame=self.frame,
-                           objects=[to_detection(e) for e in self._entities], imu=imu, holding=self.holding)
+                           objects=objects, imu=imu, holding=self.holding)
 
     def act(self, primitive: str) -> bool:
         if self._halted.is_set() or self._closed.is_set():
