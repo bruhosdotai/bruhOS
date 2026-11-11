@@ -5,6 +5,7 @@ import json
 import mimetypes
 import math
 from pathlib import Path
+import stat
 from urllib.parse import urlsplit
 
 from bruhos import __version__
@@ -29,7 +30,6 @@ def _is_linked(path: Path) -> bool:
     if hasattr(path, 'is_junction'):
         return path.is_junction()
     try:
-        import stat
         return getattr(path.lstat(), 'st_reparse_tag', 0) == getattr(stat, 'IO_REPARSE_TAG_MOUNT_POINT', 0xA0000003)
     except OSError:
         return False

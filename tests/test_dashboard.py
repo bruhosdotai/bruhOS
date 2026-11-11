@@ -1,10 +1,17 @@
 from functools import partial
 from http.server import ThreadingHTTPServer
 import json
+import os
+from pathlib import Path
 import threading
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
+
+try:
+    import _winapi
+except ImportError:  # pragma: no cover - non-Windows
+    _winapi = None
 
 import pytest
 
@@ -65,9 +72,7 @@ def test_latest_twelve_are_sorted_and_external_links_skipped(tmp_path):
     try:
         (tmp_path/'linked').symlink_to(tmp_path/'episode-0', target_is_directory=True)
     except OSError:
-        import os
-        if os.name == 'nt':
-            import _winapi
+        if os.name == 'nt' and _winapi is not None:
             _winapi.CreateJunction(str(tmp_path/'episode-0'), str(tmp_path/'linked'))
         else:
             raise
@@ -80,11 +85,20 @@ def test_latest_twelve_are_sorted_and_external_links_skipped(tmp_path):
     assert data['skipped'] == 1
 
 
+def test_junction_reparse_point_skipped_cross_platform(tmp_path, monkeypatch):
+    ep = Runtime(SimBody(), make_planner('rules')).run('Wave hello.')
+    TraceWriter(tmp_path).write(ep)
+    ep.episode_id = 'junction-ep'
+    junction_dir = TraceWriter(tmp_path).write(ep)
+    monkeypatch.setattr(Path, 'is_junction', lambda self: self == junction_dir, raising=False)
+    data = status_data(tmp_path)
+    assert len(data['episodes']) == 1
+    assert data['skipped'] == 1
+
+
 def test_windows_junctions_skipped(tmp_path):
-    import os
-    if os.name != 'nt':
+    if os.name != 'nt' or _winapi is None:
         pytest.skip('Directory junctions are specific to Windows nt')
-    import _winapi
     ep = Runtime(SimBody(), make_planner('rules')).run('Wave hello.')
     TraceWriter(tmp_path).write(ep)
     _winapi.CreateJunction(str(tmp_path/ep.episode_id), str(tmp_path/'junction_link'))
