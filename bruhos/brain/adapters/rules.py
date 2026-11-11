@@ -61,6 +61,14 @@ class RulesPlanner(Planner):
             return [_c("wave")]
         if has("drop", "release", "let go", "open your hand"):
             return [_c("release")]
+        if has("close your hand", "close the hand", "close hand"):
+            # The mirror of "open your hand" -> release: grab's own docstring
+            # is "Close the hand on the object in reach". A hand command acts
+            # on what is already in reach and fails honestly ("nothing in
+            # reach" / "hand full") when there is nothing to close on.
+            return [_c("grab")]
+        if has("open the hand", "open hand"):
+            return [_c("release")]
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
