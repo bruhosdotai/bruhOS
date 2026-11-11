@@ -40,6 +40,16 @@ class RulesPlanner(Planner):
         if has("stand up", "get up", "get back up"):
             return [_c("stand_up")]
 
+        if (has("put", "place", "drop", "bring", "move", "carry", "throw", "set", "store")
+                and re.search(r"\bnext\s+to\s+(the\s+)?(box|bin|basket)\b", s)):
+            # "next to the box" names a place beside the box, not containment
+            # in it: the into-box matcher below would otherwise read the
+            # "to the box" inside "next to the box" as a delivery into the
+            # box and certify success while the block ends up in the box.
+            # The skill set cannot place an object beside the box -- release
+            # within reach of the box is containment -- so no plan.
+            return []
+
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
