@@ -52,6 +52,14 @@ class RulesPlanner(Planner):
 
         if has("kick"):
             foot = "left" if has("left") else "right"
+            target = _target(s)
+            noun = target.rsplit("_", 1)[-1] if target else None
+            if noun in {"block", "box", "line"}:
+                # Only a ball can be kicked: a named block, box or line is
+                # not a kickable target, so a bare kick would certify success
+                # for an object that never moved. A bare kick and kicking the
+                # ball are unchanged.
+                return []
             if has("ball"):
                 return [_c("walk_toward", target=_target(s) or "ball", stop_distance_m=0.12), _c("kick", foot=foot)]
             return [_c("kick", foot=foot)]
