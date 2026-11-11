@@ -147,7 +147,7 @@ class ElizaBridgeBody(Body):
 
     def observe(self) -> Observation:
         self.frame += 1
-        tel = self._telemetry
+        tel = self._telemetry if isinstance(self._telemetry, dict) else {}
         roll = math.degrees(float(tel.get("imu_roll", 0.0)))
         pitch = math.degrees(float(tel.get("imu_pitch", 0.0)))
         fallen = abs(roll) > self.fall_deg or abs(pitch) > self.fall_deg
