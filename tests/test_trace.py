@@ -49,9 +49,19 @@ def test_lerobot_frames_match_features():
     assert frames[-1]["next.done"] and frames[-1]["next.success"]
 
 
-def test_trace_roundtrip_with_unicode(tmp_path):
+def test_trace_roundtrip_with_unicode(tmp_path, monkeypatch):
+    from pathlib import Path
     from bruhos.schemas import Episode, Step
     from bruhos.trace.hashing import seal
+
+    orig_open = Path.open
+
+    def strict_locale_open(self, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+        if "b" not in mode and encoding is None:
+            encoding = "ascii"
+        return orig_open(self, mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "open", strict_locale_open)
 
     ep = Episode(
         episode_id="unicode-test-1",
@@ -70,9 +80,57 @@ def test_trace_roundtrip_with_unicode(tmp_path):
         ],
     )
     seal(ep)
-    d = LocalSink(tmp_path).emit(ep)["path"]
+    d = Path(LocalSink(tmp_path).emit(ep)["path"])
+    assert "Robot \U0001f916 wave \u62db\u624b" in (d / "episode.json").read_text(encoding="utf-8")
+    assert "waved \u270c\ufe0f (\u62db\u624b)" in (d / "steps.jsonl").read_text(encoding="utf-8")
     loaded = load_episode(d)
     assert loaded.instruction == "Robot \U0001f916 wave \u62db\u624b"
     assert loaded.steps[0].outcome["detail"] == "waved \u270c\ufe0f (\u62db\u624b)"
+    assert verify_episode(loaded)
+
+
+def test_load_episode_utf8_bytes_under_ascii_locale(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+    from bruhos.schemas import Episode, Step
+    from bruhos.trace.hashing import seal
+
+    ep = Episode(
+        episode_id="unicode-load-1",
+        instruction="Robot \U0001f916 wave \u62db\u624b",
+        brain="rules",
+        body="sim",
+        started_at=1.0,
+        steps=[
+            Step(
+                index=0,
+                t=1.0,
+                call={"skill": "wave", "args": {}},
+                outcome={"status": "ok", "detail": "waved \u270c\ufe0f (\u62db\u624b)"},
+                obs_before={"t": 1.0, "frame": 1, "objects": [], "imu": {}, "line": {}},
+            )
+        ],
+    )
+    seal(ep)
+    d = tmp_path / ep.episode_id
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "episode.json").write_bytes(
+        (json.dumps(ep.header(), indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+    )
+    (d / "steps.jsonl").write_bytes(
+        (json.dumps(ep.steps[0].to_dict(), sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+    )
+
+    orig_open = Path.open
+
+    def strict_locale_open(self, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+        if "b" not in mode and encoding is None:
+            encoding = "ascii"
+        return orig_open(self, mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "open", strict_locale_open)
+
+    loaded = load_episode(d)
+    assert loaded.instruction == "Robot \U0001f916 wave \u62db\u624b"
     assert verify_episode(loaded)
 

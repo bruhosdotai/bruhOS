@@ -17,8 +17,11 @@ class TraceWriter:
         d.mkdir(parents=True, exist_ok=True)
         with (d / "steps.jsonl").open("w", encoding="utf-8") as f:
             for s in ep.steps:
-                f.write(json.dumps(s.to_dict(), sort_keys=True) + "\n")
-        (d / "episode.json").write_text(json.dumps(ep.header(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                f.write(json.dumps(s.to_dict(), sort_keys=True, ensure_ascii=False) + "\n")
+        (d / "episode.json").write_text(
+            json.dumps(ep.header(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
         return d
 
 
