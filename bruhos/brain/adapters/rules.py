@@ -40,6 +40,19 @@ class RulesPlanner(Planner):
         if has("stand up", "get up", "get back up"):
             return [_c("stand_up")]
 
+        # "Take a look/peek at X" and "get a look at X" only ask to look: the
+        # bare "take"/"get" must not fall through to the pickup branch and
+        # grab an object nobody asked to fetch. "Take a picture/photo of X"
+        # names no skill at all (there is no photo skill), so it has no
+        # plan. With no named target ("take a look around") the instruction
+        # falls through to the look-around branch below.
+        if re.search(r"\b(take a look|take a peek|get a look)\b", s):
+            obj = _target(s)
+            if obj:
+                return [_c("look_at", target=obj)]
+        if re.search(r"\btake a (picture|photo)\b", s):
+            return []
+
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
