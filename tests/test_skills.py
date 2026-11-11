@@ -40,3 +40,15 @@ def test_shorthand_parse():
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
+
+
+def test_bool_args_rejected_for_string_params():
+    # A boolean is not a target name: str(True) == "True" can never match a
+    # detection, so the robot would burn a full scan revolution before
+    # failing. Numbers are rejected for string params by the same rule;
+    # bools are ints in Python, so they must be rejected explicitly here.
+    with pytest.raises(SkillError):
+        validate(SkillCall("walk_toward", {"target": True}))
+    with pytest.raises(SkillError):
+        validate(SkillCall("detect", {"target": False}))
+    assert validate(SkillCall("walk_toward", {"target": "red_block"})).args["target"] == "red_block"
