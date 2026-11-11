@@ -44,12 +44,32 @@ class Outcome:
     detail: str = ""
     data: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.status, Status):
+            try:
+                self.status = Status(self.status)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"invalid outcome status: {self.status!r}") from e
+
     @property
     def ok(self) -> bool:
         return self.status is Status.OK
 
     def to_dict(self) -> dict[str, Any]:
         return {"status": self.status.value, "detail": self.detail, "data": self.data}
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Outcome":
+        if not isinstance(d, dict) or "status" not in d:
+            raise ValueError(f"not an outcome dict: {d!r}")
+        data = d.get("data")
+        if data is not None and not isinstance(data, dict):
+            raise ValueError(f"data must be an object: {d!r}")
+        return cls(
+            status=d["status"],
+            detail=str(d.get("detail") or ""),
+            data=dict(data) if data is not None else {},
+        )
 
 
 _CALL = re.compile(r"^\s*([a-z_][a-z0-9_]*)\s*(?:\((.*)\))?\s*$")
