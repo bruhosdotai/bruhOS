@@ -27,6 +27,21 @@ class CameraModel:
     height: int = 480
     hfov_deg: float = 62.0
 
+    def __post_init__(self) -> None:
+        # The pinhole model is only defined for a positive frame width:
+        # focal_px is (width / 2) / tan(hfov / 2), so width 0 makes it 0 and
+        # bearing() divides by zero the first time a blob is detected, and a
+        # negative width puts the frame centre off-frame and flips the sign of
+        # right-side bearings. Fail at construction so a bad [camera].width
+        # fails fast at load instead of crashing observe() mid-episode.
+        try:
+            width = float(self.width) if not isinstance(self.width, bool) else math.nan
+        except (TypeError, ValueError):
+            width = math.nan
+        if not (math.isfinite(width) and width > 0):
+            raise ValueError(f"width must be a finite positive frame width in pixels, got {self.width!r}")
+        self.width = width
+
     @property
     def focal_px(self) -> float:
         return (self.width / 2) / math.tan(math.radians(self.hfov_deg / 2))
