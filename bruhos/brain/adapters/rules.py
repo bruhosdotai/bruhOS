@@ -27,6 +27,30 @@ def _c(skill: str, **args: Any) -> SkillCall:
     return SkillCall(skill, args)
 
 
+# A destination after a pick-up verb ("take the red block to the blue
+# block"): the object must end up there, which no skill can do for a
+# non-box target -- release drops it at the robot's feet.
+_DEST = re.compile(r"\b(?:to|toward|towards|onto|on|at|next\s+to|beside|near)\s+(the\s+)?"
+                   r"(?:(\w+)\s+)?(block|cube|brick|ball|box|bin|basket|line)\b")
+
+
+def _nonbox_destination(text: str, obj: str | None) -> bool:
+    """True when the instruction names a non-box destination for ``obj``.
+
+    Box destinations are the delivery branch's territory and are left alone;
+    a destination that is the picked-up object itself ("pick up the block
+    next to the blue block") is a locator, not a destination.
+    """
+    m = _DEST.search(text)
+    if not m:
+        return False
+    color, noun = m.group(2), NOUNS[m.group(3)]
+    if noun in {"box"} or m.group(3) in {"bin", "basket"}:
+        return False
+    dest = f"{color}_{noun}" if color else noun
+    return dest != obj
+
+
 class RulesPlanner(Planner):
     name = "rules"
     version = "rules-0.1"
@@ -64,6 +88,11 @@ class RulesPlanner(Planner):
 
         obj = _target(s)
         if has("pick up", "grab", "take", "get", "hold") and obj:
+            if _nonbox_destination(s, obj):
+                # The object must end up at a named non-box target, which no
+                # skill can do: walking to it and grabbing it would certify
+                # success for an object that never moved there.
+                return []
             return [_c("walk_toward", target=obj), _c("grab")]
         if has("walk", "go", "come", "approach", "move") and obj:
             return [_c("walk_toward", target=obj)]
