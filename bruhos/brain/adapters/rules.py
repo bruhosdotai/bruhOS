@@ -35,6 +35,14 @@ class RulesPlanner(Planner):
         s = " " + re.sub(r"[^a-z ]+", " ", instruction.lower()) + " "
         has = lambda *ws: any(f" {w} " in s or (" " in w and w in s) for w in ws)
 
+        m = re.search(r"\b(don t|dont|do not|never)\s+(ever\s+)?(stop|halt|freeze)\b", s)
+        if m:
+            # A negated stop is a prohibition, not a command: "Don't stop."
+            # must not halt the robot. Strip the negated clause and plan
+            # the rest; nothing left means no plan.
+            rest = (s[: m.start()] + s[m.end():]).strip()
+            return self.plan(rest, obs, catalog) if rest else []
+
         if has("stop", "halt", "freeze"):
             return [_c("stop")]
         if has("stand up", "get up", "get back up"):
