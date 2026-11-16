@@ -49,6 +49,15 @@ class RulesPlanner(Planner):
                 obj = obj if obj not in (None, "line") else "block"
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
                     _c("walk_toward", target="box"), _c("release")]
+        # Fetch verbs mean the same as picking the object up: walk to it and
+             # grab it. "Bring X to the box" is handled by the into_box branch
+             # above, so this only fires without a box destination. A box or line
+             # is not grabbable, and a bare "fetch it" names no target, so both
+             # stay unplanned rather than guessing.
+             if has("bring me", "fetch", "give me", "hand me", "pass me"):
+                      obj = _target(s)
+                      if obj and obj not in ("box", "line"):
+                               return [_c("walk_toward", target=obj), _c("grab")]
 
         if has("kick"):
             foot = "left" if has("left") else "right"
