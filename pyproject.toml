@@ -9,7 +9,7 @@ description = "The skill OS that stands next to the robot."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
-authors = [{ name = "BruhOS", email = "bruhos2027@gmail.com" }]
+authors = [{ name = "BruhOS", email = "admin@bruhos.ai" }]
 keywords = ["robotics", "embodied-ai", "tonypi", "lerobot", "vlm", "skills"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
@@ -50,6 +50,7 @@ speech = ["faster-whisper>=1.0"]
 # WonderEcho serial. Hearing, the reply model, and Piper are not pip packages.
 # The file list and the commands are in docs/ear.md.
 ear = ["pyserial>=3.5"]
+eliza = ["websockets>=12"]
 dev = ["pytest>=8"]
 
 [project.scripts]
@@ -63,7 +64,7 @@ X = "https://x.com/bruhos_ai"
 include = ["bruhos*"]
 
 [tool.setuptools.package-data]
-bruhos = ["eval/*.toml", "sim/*.toml", "web/static/*"]
+bruhos = ["eval/*.toml", "sim/*.toml", "web/static/*", "dashboard/web/*", "dashboard/web/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

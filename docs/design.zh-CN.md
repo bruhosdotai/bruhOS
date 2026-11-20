@@ -114,6 +114,7 @@ bruhOS 存在的理由：**把已开源的大脑接到这台身体上，而不�
 | **Hugging Face LeRobot** | 数据 + 评测格式 | trace / 示教导出为 LeRobot Dataset，方便以后换臂、换策略 |
 | **Qwen2.5/3-VL**（开源） | Brain | 英语指令 + 观察 JSON → 技能调用；可本地 vLLM |
 | **OpenAI-compatible API** | Brain 备路 | 同一 schema，换 endpoint 即可 |
+| **Liquid LFM3-Omni-2B**（开放权重） | Brain（机上） | Pi 5 本机 llama.cpp，纯 CPU；关闭 thinking，用技能目录生成的 JSON schema 约束输出 |
 | **Hiwonder/TonyPi** | Body | 动作组、相机、IMU、RPC、语音盒 |
 | **YOLO / MediaPipe / OpenCV** | Runtime 感知 | 机上目标、人脸、姿态，禁止把原视频当唯一输入 |
 
@@ -193,6 +194,7 @@ bruhOS/
   brain/
     adapters/openai.py
     adapters/qwen_vl.py
+    adapters/lfm3_omni.py          # Liquid LFM3, on the Pi (llama.cpp)
     adapters/groot_s2.py      # stub in v0.1
     adapters/lerobot_policy.py
   skills/

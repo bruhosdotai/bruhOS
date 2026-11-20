@@ -11,3 +11,6 @@ traces/
 models/depth/*.pth
 vendor/Depth-Anything-V2/
 configs/*.local.toml
+
+# Local design tooling
+.21st/

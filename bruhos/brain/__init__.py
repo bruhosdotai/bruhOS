@@ -17,13 +17,16 @@ def make_planner(name: str, **cfg: Any) -> Planner:
     if name == "qwen_vl":
         from .adapters.qwen_vl import QwenVLPlanner
         return QwenVLPlanner(**cfg)
+    if name == "lfm3_omni":
+        from .adapters.lfm3_omni import LFM3OmniPlanner
+        return LFM3OmniPlanner(**cfg)
     if name == "groot_s2":
         from .adapters.groot_s2 import GR00TS2Planner
         return GR00TS2Planner(**cfg)
     if name == "lerobot_policy":
         from .adapters.lerobot_policy import LeRobotPolicyPlanner
         return LeRobotPolicyPlanner(**cfg)
-    raise ValueError(f"unknown brain {name!r} (rules | openai | qwen_vl | groot_s2 | lerobot_policy)")
+    raise ValueError(f"unknown brain {name!r} (rules | openai | qwen_vl | lfm3_omni | groot_s2 | lerobot_policy)")
 
 
 __all__ = ["IntegrationError", "Planner", "make_planner", "parse_plan"]

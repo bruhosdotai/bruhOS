@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#3a8fec" />
+    <title>bruhOS · Trace console</title>
+    <link rel="icon" href="/assets/favicon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#activity">Skip to robot activity</a>
+    <div class="sky" aria-hidden="true"></div>
+    <div class="shell">
+      <header class="nav">
+        <a class="brand" href="https://bruhos.ai" target="_blank" rel="noopener"
+          ><img src="/assets/favicon.png" width="32" height="32" alt="" /><span
+            >bruh<b>OS</b></span
+          ></a
+        >
+        <div class="nav-right">
+          <span class="console mono">Trace console</span
+          ><a
+            class="pill"
+            href="https://github.com/bruhosdotai/bruhOS"
+            target="_blank"
+            rel="noopener"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </header>
+      <main>
+        <section class="hero" aria-labelledby="heading">
+          <div class="hero-copy">
+            <div class="eyebrow mono">
+              THE SKILL OS THAT STANDS NEXT TO THE ROBOT
+            </div>
+            <h1 id="heading">Every skill.<br /><span>A trace.</span></h1>
+            <p class="intro">
+              Open brains in. Skills out.<br />See what your robot does, and the trace
+              it leaves.
+            </p>
+            <div class="connection">
+              <span class="status-pill" id="connection" role="status"
+                ><i></i><span>Connecting to trace console</span></span
+              ><span class="mono" id="mode">Checking environment</span>
+            </div>
+          </div>
+          <div class="portrait">
+            <div class="halo"></div>
+            <span class="ghost" aria-hidden="true">bruh</span
+            ><img
+              src="/assets/bruh.webp"
+              width="1024"
+              height="1024"
+              alt="bruh — the face of bruhOS"
+            />
+            <div class="portrait-note mono">CONTROL STAYS ON THE BODY.</div>
+          </div>
+        </section>
+        <section class="runtime-strip" aria-label="Trace source">
+          <div><span class="mono label">SOURCE</span><strong>Local episodes</strong></div>
+          <div><span class="mono label">ACCESS</span><strong>Read only</strong></div>
+          <div><span class="mono label">REFRESH</span><strong>Every 2 seconds</strong></div>
+          <div><span class="mono label">RUNTIME</span><strong id="version">—</strong></div>
+        </section>
+        <section
+          class="activity"
+          id="activity"
+          aria-labelledby="activity-title"
+        >
+          <div class="section-head">
+            <div>
+              <div class="eyebrow mono">EXECUTION, WITH RECEIPTS</div>
+              <h2 id="activity-title">Robot activity</h2>
+            </div>
+            <span class="mono refresh" id="refresh">Waiting for data</span>
+          </div>
+          <div class="activity-panel">
+            <div class="panel-head">
+              <div class="summary">
+                <span
+                  ><b id="total">—</b>
+                  <span id="episode-label">recent episodes</span></span
+                ><span
+                  ><b id="verified">—</b>
+                  <span id="verified-label">traces verified</span></span
+                >
+              </div>
+              <div class="filters" role="group" aria-label="Filter episodes">
+                <button type="button" aria-pressed="true" data-filter="all">
+                  All</button
+                ><button
+                  type="button"
+                  aria-pressed="false"
+                  data-filter="completed"
+                >
+                  Completed</button
+                ><button type="button" aria-pressed="false" data-filter="other">
+                  Stopped / failed
+                </button>
+              </div>
+            </div>
+            <div id="episodes">
+              <div class="empty">Connecting to the trace console…</div>
+            </div>
+          </div>
+          <p class="trace-note mono">
+            Verification checks the existing trace hash chain, not all metadata
+            or independent physical completion.
+          </p>
+        </section>
+      </main>
+      <footer>
+        <div>
+          <a
+            class="footer-brand"
+            href="https://bruhos.ai"
+            target="_blank"
+            rel="noopener"
+            >bruhOS</a
+          >
+          <p>From a command to a hashable trace.</p>
+        </div>
+        <div class="footer-info">
+          <p>Saved bruhOS episodes · local, read-only inspection</p>
+          <span class="mono">BUILT FOR REAL ROBOTS · LOCAL TRACE CONSOLE</span>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

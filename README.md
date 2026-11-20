@@ -80,6 +80,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | `rules` brain (offline English planner, no model) | Working |
 | `openai` brain (any OpenAI-compatible endpoint) | Implemented; tested against a mocked endpoint |
 | `qwen_vl` brain (local vLLM, optional camera frame) | Implemented; tested against a mocked endpoint |
+| `lfm3_omni` brain (Liquid LFM3-Omni-2B in llama.cpp on the Pi 5, optional camera frame) | Implemented; sim eval run against the real model on a Pi 5 |
 | `groot_s2` brain | Stub: contract + joint-action guard; real GR00T wrapper is v0.2 |
 | `lerobot_policy` brain | Interface: HTTP client for a skill-JSON policy server |
 | Trace hashing, Merkle root, verify, local sink | Working, tested |
@@ -89,6 +90,7 @@ bruhOS is pre-alpha (`0.1.0.dev0`). This is what is real today and what is not:
 | TonyPi body (Hiwonder action groups, OpenCV color blobs, board IMU) | Action files and the expansion-board IMU are real on this image. The harness ear can dispatch a skill; the servo port is still shared, so a gait can die mid-step |
 | Ear, local stack (llama-server + Piper) | Default. Hears with Qwen3-ASR, answers with TinyLlama, speaks with Piper. `remote` is the zerollama upgrade for a faster reply |
 | Limb torque (`scripts/limbs.py`) | Manual. Unload or load each hand, arm, and leg. Not a skill. See [docs/body.md](docs/body.md) |
+| elizaOS robot bridge body (`--body eliza`, [elizaOS/research](https://github.com/elizaOS/research)) | Implemented; tested against the bridge's mock backend. Its MuJoCo backend currently refuses motion commands |
 | Isaac Lab twin / Cosmos augmentation | Scene spec only (`bruhos/sim/tabletop_task.toml`); v0.2 |
 
 ## Quick start
@@ -126,6 +128,17 @@ Sim baseline for the `rules` brain (kinematic sim, not hardware):
 | no falls | 20 / 20 | 1 (scripted, "Stand up.") | 1 |
 | `--fall-prob 0.05 --seed 1` | 16 / 20 | 28 | 24 |
 
+Same prompts with the `lfm3_omni` brain: LFM3-Omni-2B Q4_0 in llama.cpp on a Raspberry Pi 5 (8 GB, CPU
+only), 3–12 s per plan depending on its length:
+
+| Setting | Completion | Falls | Recovered |
+| --- | --- | --- | --- |
+| no falls | 18 / 20 | 1 (scripted, "Stand up.") | 1 |
+| `--fall-prob 0.05 --seed 1` | 15 / 20 | 26 | 23 |
+
+It misses "Grab the blue one." (grabs before walking to it) and "Place the green cube into the box."
+(asks for `green_cube`; the sim calls it `green_block`).
+
 ## Brains
 
 ```bash
@@ -145,12 +158,30 @@ bruhos web --config configs/zerollama.toml   # http://<pi>:8090/ PTT + /tts.wav 
 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
 export BRUHOS_LLM_BASE_URL=http://<gpu-host>:8000/v1
 bruhos run "Kick the ball." --brain qwen_vl
+
+# Liquid LFM3-Omni-2B on the Pi itself: CPU only, ~3 GB RAM, no GPU host
+llama-server -hf LiquidAI/LFM3-Omni-2B-GGUF:Q4_0 --jinja --swa-full -ub 64 -cms 64 \
+  -t 3 -tb 4 -c 8192 --temp 0 --port 8080
+bruhos run "Kick the ball." --brain lfm3_omni
 ```
 
 Remote speech uses OpenAI-compatible `/v1/audio/transcriptions` and `/v1/audio/speech`.
 With `playback = "http"`, TTS wavs land in `speech.http_dir`; `bruhos web` serves them at `/tts.wav` for VLC.
 Press-to-talk returns a transcript labeled as an assumed command (skills not executed yet).
 Open-mic address detection (systemone / Laya) is documented in `docs/roadmap-address-gate.md`.
+
+Brain HTTP calls never follow redirects, so an API key cannot be forwarded to another origin: point
+`BRUHOS_LLM_BASE_URL` (or `base_url`) at the final endpoint. A real API key is only sent over
+`https://` or to this machine (`127.0.0.1`, `localhost`); a LAN server without a key, like the vLLM
+example above, works over plain `http://`. For a keyed server on a trusted network, set
+`allow_insecure = true` under `[brain]`, or use an SSH tunnel.
+
+The `lfm3_omni` brain turns LFM3's thinking off (plans in a few seconds instead of ~50 s on a Pi 5) and
+constrains the reply with a JSON schema built from the skill catalog, so the model cannot produce a
+skill, arg or choice outside the whitelist. A 2B model plans better from a short observation (object
+names, distances, what it holds) and a few worked examples, so that is what it gets; the examples use
+objects that are not in the sim or the eval. `--swa-full` keeps the catalog prompt cached between
+plans. Weights: [LFM Open License v1.0](https://www.liquid.ai/lfm-license).
 
 All brains receive the skill catalog and the observation JSON and must answer with:
 
@@ -241,12 +272,30 @@ Each step is hashed over canonical JSON and chained to the previous step; the ep
 run on a background thread, so a slow or failing sink never blocks the control loop. What goes
 on-chain is `trace_root` plus the skillpack and brain version hashes — not video, not control.
 
+## Local trace dashboard
+
+```sh
+bruhos run "Wave hello." --traces traces # simulator; no hardware required
+bruhos dashboard --traces traces
+```
+
+Open http://127.0.0.1:8765/. Use the same trace directory as the runtime; `--port`
+changes the listening port. The read-only console refreshes every two seconds and
+shows the latest 12 readable episodes, outcome filters and expandable trace details.
+It opens no hardware and changes no runtime settings.
+
+The server binds to localhost. For remote viewing, forward the port with
+`ssh -N -L 8876:127.0.0.1:8765 pi@ROBOT_IP`, then open http://127.0.0.1:8876/.
+Verification uses the existing trace hash chain, which does not cover all header
+metadata or independently prove physical completion. Live hardware status is not
+reported. Assets work offline; system fonts require no downloads.
+
 ## Layout
 
 ```
 bruhos/
   runtime/        observe · dispatch · recover · trace
-  brain/adapters/ rules · openai · qwen_vl · groot_s2 (stub) · lerobot_policy
+  brain/adapters/ rules · openai · qwen_vl · lfm3_omni · groot_s2 (stub) · lerobot_policy
   skills/         whitelist + implementations (written once against body primitives)
   body/           Body interface · TonyPi · perception (OpenCV) · MPU-6050
   speech/         English-first ASR / TTS · Piper
@@ -274,11 +323,19 @@ The ear, why local is the default, and why zerollama is the faster reply: [docs/
 | **v0.3** | Two bodies: TonyPi skills + arm with π0.5 / SmolVLA; ChainSink on | Walk, see, talk — and grasp — as separate layers |
 | later | On-device VLA only with Jetson-class hardware | Still no GR00T whole-body head on a Pi 5 |
 
+## Team
+
+<p align="center">
+  <a href="https://x.com/baogerbao"><img src="docs/assets/team/baoger.png" width="190" alt="Baoger, AI Brain Adapter & Perception Engineer, on X" /></a>
+  <a href="https://x.com/spaceodili"><img src="docs/assets/team/odi.png" width="190" alt="Odi, Robotics & Hardware Integration Engineer, on X" /></a>
+  <a href="https://x.com/SYMBiEX"><img src="docs/assets/team/symbiex.png" width="190" alt="SYMBiEX, Runtime & Systems Engineer, on X" /></a>
+  <a href="https://x.com/friesmakesfries"><img src="docs/assets/team/fries.png" width="190" alt="Fries, Operations & Growth Lead, on X" /></a>
+</p>
+
 ## Contributing
 
-PRs welcome. 5% of the bruhOS token supply is shared among contributors by GitHub contribution
-points — rules in [CONTRIBUTING.md](CONTRIBUTING.md), live board at
-[bruhos.ai/contributors](https://bruhos.ai/contributors/).
+PRs welcome, including through [Slop](https://slop.cash/projects/bruhos). Rules in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

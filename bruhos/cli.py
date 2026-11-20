@@ -112,7 +112,10 @@ def _body(name: str, cfg: dict[str, Any], fall_prob: float, seed: int):
     if name == "tonypi":
         from bruhos.body.tonypi import TonyPiBody
         return TonyPiBody(cfg)
-    raise SystemExit(f"unknown body {name!r} (sim | tonypi)")
+    if name == "eliza":
+        from bruhos.body.eliza_bridge import ElizaBridgeBody
+        return ElizaBridgeBody(cfg)
+    raise SystemExit(f"unknown body {name!r} (sim | tonypi | eliza)")
 
 
 def _speech_cfg(cfg: dict[str, Any]):
@@ -659,6 +662,13 @@ def cmd_ear(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(a: argparse.Namespace) -> int:
+    from bruhos.dashboard import serve
+
+    serve(a.traces, a.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bruhos", description="bruhOS — the skill OS that stands next to the robot.")
     p.add_argument("--version", action="version", version=f"bruhos {__version__}")
@@ -666,8 +676,8 @@ def main(argv: list[str] | None = None) -> int:
 
     r = sub.add_parser("run", help="run one English instruction")
     r.add_argument("instruction")
-    r.add_argument("--body", default="sim", choices=["sim", "tonypi"])
-    r.add_argument("--brain", default=None, help="rules | openai | qwen_vl | groot_s2 | lerobot_policy")
+    r.add_argument("--body", default="sim", choices=["sim", "tonypi", "eliza"])
+    r.add_argument("--brain", default=None, help="rules | openai | qwen_vl | lfm3_omni | groot_s2 | lerobot_policy")
     r.add_argument("--config", help="e.g. configs/tonypi.toml or configs/zerollama.toml")
     r.add_argument("--traces")
     r.add_argument("--fall-prob", type=float, default=0.0)
@@ -809,6 +819,11 @@ def main(argv: list[str] | None = None) -> int:
     lr = sub.add_parser("lerobot", help="print LeRobot-aligned frames for a trace")
     lr.add_argument("path")
     lr.set_defaults(fn=cmd_lerobot)
+
+    dashboard = sub.add_parser("dashboard", help="inspect saved traces in a local read-only console")
+    dashboard.add_argument("--traces", default="traces", help="runtime trace directory")
+    dashboard.add_argument("--port", type=int, default=8765)
+    dashboard.set_defaults(fn=cmd_dashboard)
 
     a = p.parse_args(argv)
     return a.fn(a)

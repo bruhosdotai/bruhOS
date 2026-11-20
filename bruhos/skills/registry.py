@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -85,8 +86,10 @@ def validate(call: SkillCall) -> SkillCall:
         v = call.args[k]
         try:
             v = a.type(v)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError, OverflowError) as e:
             raise SkillError(f"{call.skill}.{k}: expected {a.type.__name__}, got {v!r}") from e
+        if isinstance(v, float) and not math.isfinite(v):
+            raise SkillError(f"{call.skill}.{k}: must be a finite number, got {v!r}")
         if a.choices and v not in a.choices:
             raise SkillError(f"{call.skill}.{k}: {v!r} not in {list(a.choices)}")
         out[k] = v
