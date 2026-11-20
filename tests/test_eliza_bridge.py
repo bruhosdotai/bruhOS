@@ -10,6 +10,7 @@ from websockets.sync.server import serve  # noqa: E402
 from bruhos.body.eliza_bridge import ElizaBridgeBody, to_detection  # noqa: E402
 from bruhos.brain import make_planner  # noqa: E402
 from bruhos.runtime import Runtime  # noqa: E402
+from bruhos.schemas import Detection, Observation  # noqa: E402
 
 PROFILE = {"profile": {"actions": {"groups": {"stand": {"duration_s": 0.2}, "wave": {"duration_s": 0.3}}}}}
 
@@ -68,6 +69,35 @@ def test_detection_from_bridge_entity():
     d = to_detection({"label": "red ball", "x": 1.0, "y": 1.0, "confidence": 0.5})
     assert (d.label, d.color, d.bearing_deg, d.distance_m) == ("ball", "red", 45.0, 1.414)
     assert to_detection({"label": "box", "x": 2.0, "y": 0.0, "distance": 2.1}).name == "box"
+
+
+def test_multiword_label_is_findable_by_its_own_name():
+    """A detection must resolve under the name the observation reports for it.
+
+    to_detection turns "red soccer ball" into label="soccer_ball",
+    color="red", so the observation names it "red_soccer_ball" — and
+    Observation.find must return it for that name, for the label part,
+    and for any single word of it, while still rejecting a wrong color
+    or an unrelated word.
+    """
+    ball = to_detection({"label": "red soccer ball", "x": 0.3, "y": 0.0})
+    assert ball.name == "red_soccer_ball"
+    obs = Observation(t=0, frame=0, objects=[ball])
+    for target in ("red_soccer_ball", "soccer_ball", "ball", "red ball", "the red soccer ball"):
+        assert obs.find(target) is ball, target
+    for target in ("blue_soccer_ball", "green", "pyramid"):
+        assert obs.find(target) is None, target
+
+    can = to_detection({"label": "trash can", "x": 0.3, "y": 0.0})
+    assert can.name == "trash_can"
+    assert Observation(t=0, frame=0, objects=[can]).find("trash_can") is can
+
+    # Single-word labels keep their existing behaviour.
+    block = Detection("block", "red")
+    scene = Observation(t=0, frame=0, objects=[block])
+    for target in ("red_block", "red", "block"):
+        assert scene.find(target) is block, target
+    assert scene.find("blue_block") is None
 
 
 def test_forward_heartbeats_then_stops(bridge):

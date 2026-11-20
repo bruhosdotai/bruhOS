@@ -19,9 +19,19 @@ class Detection:
         return f"{self.color}_{self.label}" if self.color else self.label
 
     def matches(self, target: str) -> bool:
-        """`red_block`, `red`, `block`, `box` all resolve against label/color."""
-        tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
-        have = {self.label.lower()} | ({self.color.lower()} if self.color else set())
+        """`red_block`, `red`, `block`, `box` all resolve against label/color.
+
+        The label and the color are tokenized the same way as the target, so
+        a multi-word label such as `soccer_ball` still matches its own
+        reported name (`red_soccer_ball`) and any part of it (`ball`).
+        Spaces are treated like underscores, so a brain that says
+        "red ball" resolves the same way as "red_ball".
+        """
+        def _tokens(s: str) -> set[str]:
+            return {t for t in s.lower().replace("-", "_").replace(" ", "_").split("_") if t}
+
+        tokens = _tokens(target) - {"the", "one"}
+        have = _tokens(self.label) | _tokens(self.color or "")
         return bool(tokens) and tokens <= have
 
 
