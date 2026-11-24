@@ -103,6 +103,14 @@ def test_groot_joint_chunk_is_integration_error():
         parse_plan({"actions": chunk})
 
 
+def test_joint_chunk_beside_a_valid_plan_is_rejected():
+    """A continuous action chunk must not slip through just because a valid plan is also present."""
+    payload = {"plan": [{"skill": "wave", "args": {}}],
+               "actions": [[0.01 * j for j in range(16)] for _ in range(8)]}
+    with pytest.raises(IntegrationError):
+        parse_plan(payload)
+
+
 def test_groot_stub_without_reasoner():
     with pytest.raises(NotImplementedError):
         GR00TS2Planner().plan("Wave.", SimBody().observe(), [])

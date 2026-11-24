@@ -38,9 +38,15 @@ def _is_number_chunk(x: Any) -> bool:
 
 def guard_no_joint_actions(raw: Any) -> None:
     """Reject continuous action chunks (e.g. GR00T / VLA joint targets). Skills only."""
-    items = raw.get("plan", raw.get("actions", raw)) if isinstance(raw, dict) else raw
-    if _is_number_chunk(items) or (isinstance(items, list) and any(_is_number_chunk(i) for i in items)):
-        raise IntegrationError("brain returned a continuous action chunk; bruhOS only executes whitelisted skills")
+    # Check every chunk-bearing slot, not just the one that wins the plan fallback. A chunk
+    # carried beside a valid plan is still a joint command and must never reach the body.
+    if isinstance(raw, dict):
+        candidates = [raw[k] for k in ("plan", "actions") if k in raw]
+    else:
+        candidates = [raw]
+    for items in candidates:
+        if _is_number_chunk(items) or (isinstance(items, list) and any(_is_number_chunk(i) for i in items)):
+            raise IntegrationError("brain returned a continuous action chunk; bruhOS only executes whitelisted skills")
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
