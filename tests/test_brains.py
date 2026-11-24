@@ -103,6 +103,22 @@ def test_groot_joint_chunk_is_integration_error():
         parse_plan({"actions": chunk})
 
 
+def test_delivery_of_already_held_object_skips_pickup():
+    """A held target cannot be detected or grabbed again; deliver it directly."""
+    from bruhos.brain.adapters.rules import RulesPlanner
+    from bruhos.sim.kinematic import World
+
+    world = World.tabletop()
+    red = world.get("red_block")
+    world.holding, red.x, red.y = red, 0.0, 0.0
+    brain = RulesPlanner()
+    plan = brain.plan("Put the red block in the box.", SimBody(world).observe(), [])
+    assert [c.skill for c in plan] == ["walk_toward", "release"]
+    ep = Runtime(SimBody(world), brain).run("Put the red block in the box.")
+    assert ep.success, ep.end_reason
+    assert "in_box:red_block" in world.events
+
+
 def test_groot_stub_without_reasoner():
     with pytest.raises(NotImplementedError):
         GR00TS2Planner().plan("Wave.", SimBody().observe(), [])

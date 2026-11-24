@@ -43,9 +43,13 @@ class RulesPlanner(Planner):
         into_box = re.search(r"\b(in|into|inside|to)\s+(the\s+)?(box|bin|basket)\b", s)
         if has("put", "place", "drop", "bring", "move", "carry", "throw") and into_box:
             obj = _target(s[: into_box.start()])
+            # A held object is intentionally hidden from observation, so re-detecting or
+            # re-grabbing it can only fail. Deliver what is already in the hand instead.
+            already_held = bool(obs.holding) and (obj in (None, "line") or has(" it ")
+                                                  or (obj is not None and obj in obs.holding))
+            if already_held:
+                return [_c("walk_toward", target="box"), _c("release")]
             if obj in (None, "line") or has(" it "):
-                if obs.holding:
-                    return [_c("walk_toward", target="box"), _c("release")]
                 obj = obj if obj not in (None, "line") else "block"
             return [_c("detect", target=obj), _c("walk_toward", target=obj), _c("grab"),
                     _c("walk_toward", target="box"), _c("release")]
