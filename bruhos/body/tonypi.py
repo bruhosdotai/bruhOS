@@ -104,7 +104,10 @@ class TonyPiBody(Body):
         if stop:
             stop()
         if self.actions.get("stand"):
-            threading.Thread(target=self.agc.runActionGroup, args=(self.actions["stand"],), daemon=True).start()
+            # Keep the recovery pose on the same configured path as every other action group.
+            kw = {"path": self.action_path} if self.action_path else {}
+            threading.Thread(target=self.agc.runActionGroup, args=(self.actions["stand"],),
+                             kwargs=kw, daemon=True).start()
 
     def resume(self) -> None:
         self._halted.clear()
