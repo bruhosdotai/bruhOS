@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from itertools import islice
 import time
 import uuid
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ class RuntimeConfig:
     max_recoveries: int = 3        # stand_up attempts per episode
     max_replans: int = 1           # brain re-plans after a failed skill
     max_skill_steps: int = 120     # primitive budget inside one skill
+    max_plan_calls: int = 64       # skill calls one brain response may authorize
 
 
 class Runtime:
@@ -73,7 +75,12 @@ class Runtime:
         try:
             raw = (self.brain.replan(ep.instruction, obs, CATALOG, history) if history
                    else self.brain.plan(ep.instruction, obs, CATALOG))
-            plan = [validate(c) for c in raw]
+            # Bound before validation so a large or lazy brain response cannot turn into
+            # an unbounded series of body actions. One rejection record, zero motion.
+            bounded = list(islice(raw, self.cfg.max_plan_calls + 1))
+            if len(bounded) > self.cfg.max_plan_calls:
+                raise SkillError(f"plan has more than {self.cfg.max_plan_calls} skill calls")
+            plan = [validate(c) for c in bounded]
         except (SkillError, IntegrationError, ValueError) as e:
             self._record(ep, "rejected", SkillCall("plan", {"error": type(e).__name__}),
                          Outcome(Status.REJECTED, str(e)), obs, None)

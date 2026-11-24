@@ -46,6 +46,19 @@ def test_unregistered_skill_from_brain_never_reaches_body():
     assert "wave" not in body.world.events
 
 
+def test_oversized_plan_is_rejected_before_any_skill_runs():
+    """One brain response cannot authorize an unbounded sequence of body actions."""
+    body = SimBody(World(objects=[]))
+    brain = FixedPlanner([SkillCall("wave") for _ in range(500)])
+    ep = Runtime(body, brain).run("Wave many times.")
+    assert not ep.success
+    assert ep.end_reason.startswith("plan rejected:")
+    assert "skill calls" in ep.end_reason
+    assert body.world.events == []
+    assert ep.plan == []
+    assert len(ep.steps) == 1 and ep.steps[0].kind == "rejected"
+
+
 def test_stop_preempts_running_skill():
     class SlowBody(SimBody):
         def act(self, primitive):
