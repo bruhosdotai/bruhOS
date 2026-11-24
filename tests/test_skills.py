@@ -37,6 +37,14 @@ def test_shorthand_parse():
     assert parse_call("detect", pos) == SkillCall("detect", {})
 
 
+def test_shorthand_parse_tolerates_empty_segments():
+    """Trailing/duplicate commas are harmless formatting, not a second positional value."""
+    pos = positional_args()
+    assert parse_call("kick(foot=left,)", pos) == SkillCall("kick", {"foot": "left"})
+    assert parse_call("kick(,foot=left)", pos) == SkillCall("kick", {"foot": "left"})
+    assert parse_call("walk_toward(red_block,)", pos) == SkillCall("walk_toward", {"target": "red_block"})
+
+
 def test_catalog_hash_stable():
     assert catalog_hash() == catalog_hash()
     assert catalog_hash().startswith("sha256:")
