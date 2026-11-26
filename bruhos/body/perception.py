@@ -27,6 +27,19 @@ class CameraModel:
     height: int = 480
     hfov_deg: float = 62.0
 
+    def __post_init__(self) -> None:
+        # The pinhole model divides by width/2 in bearing(); an unusable width
+        # must fail at load, not crash the first observe() mid-episode.
+        if isinstance(self.width, bool):
+            raise ValueError(f"camera width must be a positive whole number, got {self.width!r}")
+        try:
+            w = float(self.width)
+        except (TypeError, ValueError, OverflowError) as e:
+            raise ValueError(f"camera width must be a positive whole number, got {self.width!r}") from e
+        if not math.isfinite(w) or w <= 0 or w != int(w):
+            raise ValueError(f"camera width must be a positive whole number, got {self.width!r}")
+        self.width = int(w)
+
     @property
     def focal_px(self) -> float:
         return (self.width / 2) / math.tan(math.radians(self.hfov_deg / 2))
