@@ -28,7 +28,9 @@ class SkillCall:
     def from_dict(cls, d: dict[str, Any]) -> "SkillCall":
         if not isinstance(d, dict) or not isinstance(d.get("skill"), str):
             raise ValueError(f"not a skill call: {d!r}")
-        args = d.get("args") or {}
+        args = d.get("args")
+        if args is None:
+            args = {}
         if not isinstance(args, dict):
             raise ValueError(f"args must be an object: {d!r}")
         return cls(skill=d["skill"], args=args)
