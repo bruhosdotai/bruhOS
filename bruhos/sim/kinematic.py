@@ -139,11 +139,11 @@ class SimBody(Body):
         return True
 
     def _p_turn_left(self) -> bool:
-        self.world.heading_deg = (self.world.heading_deg + TURN_DEG) % 360.0
+        self.world.heading_deg = (self.world.heading_deg + self.turn_step_deg) % 360.0
         return True
 
     def _p_turn_right(self) -> bool:
-        self.world.heading_deg = (self.world.heading_deg - TURN_DEG) % 360.0
+        self.world.heading_deg = (self.world.heading_deg - self.turn_step_deg) % 360.0
         return True
 
     def _reachable(self, reach: float, cone: float, pred) -> WorldObject | None:
