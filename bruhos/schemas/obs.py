@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+_IGNORED_TOKENS = frozenset({"the", "one"})
+
+
+def _tokens(text: str) -> set[str]:
+    """Split a label, colour or target into comparable words."""
+    return {t for t in re.split(r"[\s_-]+", str(text).lower()) if t and t not in _IGNORED_TOKENS}
 
 
 @dataclass
@@ -19,9 +27,15 @@ class Detection:
         return f"{self.color}_{self.label}" if self.color else self.label
 
     def matches(self, target: str) -> bool:
-        """`red_block`, `red`, `block`, `box` all resolve against label/color."""
-        tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
-        have = {self.label.lower()} | ({self.color.lower()} if self.color else set())
+        """`red_soccer_ball`, `red`, `soccer_ball`, `ball` all resolve against label/color.
+
+        The label may itself be a multi-word name (``"soccer_ball"`` from a
+        bridge entity ``"red soccer ball"``). Every word of the target must be
+        a word of the label or the colour, so an object is findable by the
+        name it reports while a wrong colour or unrelated word is refused.
+        """
+        tokens = _tokens(target)
+        have = _tokens(self.label) | (_tokens(self.color) if self.color else set())
         return bool(tokens) and tokens <= have
 
 
