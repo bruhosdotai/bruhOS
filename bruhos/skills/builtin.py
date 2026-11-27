@@ -80,6 +80,9 @@ def look_at(ctx: SkillContext, args: dict) -> Outcome:
                   "stop_distance_m": Arg(float, default=0.1)}, positional="target"))
 def walk_toward(ctx: SkillContext, args: dict) -> Outcome:
     target, stop_at = args["target"], args["stop_distance_m"]
+    if stop_at <= 0:
+        return Outcome(Status.FAILED, f"stop_distance_m must be positive, got {stop_at}",
+                       {"stop_distance_m": stop_at})
     err, obs = _scan(ctx, target)
     if err:
         return err
