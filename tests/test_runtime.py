@@ -64,8 +64,8 @@ def test_fall_budget_ends_an_episode_that_keeps_falling():
     body = SimBody(falls_at=set(range(1, 40)))   # falls on every step it takes
     ep = Runtime(body, RulesPlanner(), config=RuntimeConfig(max_falls=2)).run("Walk to the box.")
     assert not ep.success
-    assert ep.end_reason == "fell 3 times, fall budget exhausted"
-    assert ep.falls == 3 and ep.recoveries == 3
+    assert ep.end_reason == "fell 2 times, fall budget exhausted"
+    assert ep.falls == 2 and ep.recoveries == 2   # at most max_falls falls, each recovered
     assert not body.observe().imu.fallen       # left standing, not lying down
 
 

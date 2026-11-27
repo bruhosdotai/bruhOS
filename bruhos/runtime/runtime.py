@@ -115,7 +115,7 @@ class Runtime:
                 ep.falls += 1
                 if self._recover(ep, after) is None:
                     return
-                if ep.falls > self.cfg.max_falls:   # back on its feet, but stop retrying
+                if ep.falls >= self.cfg.max_falls:  # back on its feet after its last allowed fall: stop
                     ep.end_reason = f"fell {ep.falls} times, fall budget exhausted"
                     return
                 continue                     # resume the interrupted skill
