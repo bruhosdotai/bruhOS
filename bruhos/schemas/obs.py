@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+# Any run of non-alphanumerics separates words: `red_soccer_ball`, `red-soccer-ball`
+# and `red soccer ball` all tokenise the same way.
+_WORD_SPLIT = re.compile(r"[^a-z0-9]+")
+_FILLER_WORDS = frozenset({"the", "one"})
+
+
+def _words(text: str) -> set[str]:
+    """Lowercase word set of `text`, ignoring separators and filler words."""
+    return {w for w in _WORD_SPLIT.split(text.lower()) if w and w not in _FILLER_WORDS}
 
 
 @dataclass
@@ -19,10 +30,14 @@ class Detection:
         return f"{self.color}_{self.label}" if self.color else self.label
 
     def matches(self, target: str) -> bool:
-        """`red_block`, `red`, `block`, `box` all resolve against label/color."""
-        tokens = {t for t in target.lower().replace("-", "_").split("_") if t and t not in {"the", "one"}}
-        have = {self.label.lower()} | ({self.color.lower()} if self.color else set())
-        return bool(tokens) and tokens <= have
+        """`red_soccer_ball`, `soccer_ball`, `red`, `ball` all resolve against label/color.
+
+        Both sides are tokenised the same way, so a multi-word label (`soccer_ball`,
+        `trash_can`) is reachable by its own reported name and by any part of it,
+        while an unknown word or a different color still rejects.
+        """
+        tokens = _words(target)
+        return bool(tokens) and tokens <= _words(self.label) | _words(self.color or "")
 
 
 @dataclass
